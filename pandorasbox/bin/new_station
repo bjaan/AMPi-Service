@@ -1,0 +1,13 @@
+#!/bin/bash
+
+
+ARTIST="$1"
+
+pianobar <<EOF
+c$ARTIST
+0
+q
+EOF
+
+echo -n 'q' >> /home/pi/.config/pianobar/ctl
+
