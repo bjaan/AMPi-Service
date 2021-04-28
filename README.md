@@ -3,7 +3,7 @@ AMPi is a project that integrates a mains electricity power supply with an audio
 
 This repository is the service code for the Raspberry Pi. It currently only has alpha-level code for the Pandora Player, called **pandorasbox** that is controlled via the web browser, and not yet through the AMPi interface.
 
-Some recent tests, create a Node.js app live in the ***AMPi-Node***.
+Some recent experimentation with a Node.js app live in the **AMPi-Node** folder.
 
 For the code running on  Arduino Nano, go to [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
