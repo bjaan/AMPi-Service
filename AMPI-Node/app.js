@@ -9,10 +9,10 @@ serial0.on('error', showError);
 function showPortOpen() {
   console.log('port open. Data rate: ' + serial0.baudRate);
   serial0.write('\x7EP\x7F', function(err) {
-        if (err) {
-                console.log('Error on write: ', err.message);
-                return;
-        }
+  if (err) {
+    console.log('Error on write: ', err.message);
+    return;
+  }
   console.log('message written')
 })
 }
