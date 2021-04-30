@@ -36,7 +36,7 @@ For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](h
 * Streaming software for Apple Music
 * etc
 
-# Required Software
+# Required software
 
 * Raspbian GNU/Linux 10 (buster)
 * Node.js 13.5.0+ for running the service - installed from the Raspbian repository using `apt get install node`
