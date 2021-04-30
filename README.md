@@ -24,7 +24,7 @@ First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
 * Bluetooth 4.2 Playback, this overrides everything and directly accessible after power-up
 * Pandora.com music player (WIP), using [Pianobar](https://github.com/PromyLOPh/pianobar)
 
-For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](https://bjaan.github.io/AMPi-Display-Interface/) repository.
+For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
 # TODO / WIP
 
@@ -35,3 +35,52 @@ For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](h
 * Interface to enter Wi-Fi / LAN settings
 * Streaming software for Apple Music
 * etc
+
+# Required Software
+
+* Raspbian GNU/Linux 10 (buster)
+* Node.js 13.5.0+ for running the service - installed from the Raspbian repository using `apt get install node`
+* [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according the [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe)
+
+
+# Configuration changes
+
+* Raspberry Pi boot configuration in `/boot/config.txt`
+```
+...
+
+# Uncomment some or all of these to enable the optional hardware interfaces
+dtparam=i2c_arm=on
+dtparam=i2s=on
+#dtparam=spi=on
+
+....
+
+# Enable audio (loads snd_bcm2835)
+#dtparam=audio=on
+dtoverlay=hifiberry-dacplus
+
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+[all]
+#dtoverlay=vc4-fkms-v3d
+
+enable_uart=1
+hdmi_blanking=2
+```
+
+* Shairport config changes in `/etc/shairport-sync.conf`:
+```
+metadata =
+{
+        enabled = "yes"; // set this to yes to get Shairport Sync to solicit metadata from the source and to pass it on via a pipe
+        include_cover_art = "yes"; // set to "yes" to get Shairport Sync to solicit cover art from the source and pass it via the pipe. You must also set "ena$
+        cover_art_cache_directory = "/tmp/shairport-sync/.cache/coverart"; // artwork will be  stored in this directory if the dbus or MPRIS interfaces are en$
+        pipe_name = "/tmp/shairport-sync-metadata";
+        pipe_timeout = 5000; // wait for this number of milliseconds for a blocked pipe to unblock before giving up
+};
+```
+
