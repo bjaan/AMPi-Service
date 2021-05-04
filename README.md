@@ -7,7 +7,7 @@ The Node.js app lives in the **AMPi-Node** folder.
 
 It also has alpha-level code for the Pandora Player, called **pandorasbox** that is controlled via the web browser, and not yet through the AMPi interface.
 
-For the code running on the Arduino Nano, go to [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
+For the code running on the Arduino Nano, go to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
 First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
 
