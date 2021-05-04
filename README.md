@@ -17,7 +17,7 @@ First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
 # AMPi features
 
 * 2 x 100W Class D Audio Amplifier
-* Built-in internet audio streaming device with high-quality Digital Audio Converter (DAC), e.g. FLAC 24-bits 192khz
+* Built-in internet audio streaming device with high-quality Digital-To-Analog Converter (DAC), e.g. FLAC 24-bits 192khz
 * Built-in pre-amplifier and audio transformers, to allow full galvanic separation between external audio equipment and the DAC and AMPi
 * Computer-controlled interface that controls the screen, manages the power of and the services running on the built-in audio streaming device
 * 3 switchable analog audio input channels using a relay array through a rotary switch
