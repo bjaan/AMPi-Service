@@ -6,6 +6,9 @@ const { exec } = require("child_process");
 let shairportActive = false;
 let shairportOpen = false;
 
+let pianobarActive = false;
+//let pianobarOpen = false;
+
 const MAX_MESSAGE = 200;
 const MAX_TEXT = 35;
 const PPP_BEGIN_FLAG = 0x3C; const PPP_END_FLAG = 0x3E; const PPP_NDX_COMMAND = 0; const PPP_NDX_LENGTH = 1;
@@ -89,9 +92,31 @@ function checkShairport() {
 	});
 }
 
-setInterval(function() {
+function checkPianobar() {
+	exec("service pianobar status | grep inactive", (error, stdout, stderr) => {
+		if (stdout.includes("inactive")) {
+			if (pianobarActive /*only once*/) {
+				console.log("pianobar down");
+				serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
+				serialSendStatus("");
+				//pianobarOpen = false;
+			}
+			pianobarActive = false;
+		} else {
+			if (/*!pianobarOpen*/ /*when not connected*/ /*&&*/ !pianobarActive /*only once*/) {
+				console.log("pianobar up");
+				serialSend(Buffer.from('<N\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Pandora WHITE sent'));
+			}
+			pianobarActive = true;
+		}
+	});
+}
+
+function checkStatusses() {
 	checkShairport();
-}, 5000);
+	checkPianobar();
+}
+setInterval(checkStatusses, 5000);
 
 // Shairport Sync Management
 
@@ -128,7 +153,7 @@ serial0.on('error', showError);
 function showPortOpen() {
 	console.log('port open. Data rate: ' + serial0.baudRate);
 	serialSend(Buffer.from('<P>', 'ascii'), () => console.log('Power On (P) sent'));
-	checkShairport();
+	checkStatusses();
 }
 
 function showPortClose() { console.log(' serial port closed.'); }

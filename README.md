@@ -93,7 +93,6 @@ ctl.!default {
   type hw card 0
 }
 ```
-This file is set to use card 0, but if your souncard has a different number, e.g., change this line: slave.pcm "plughw:0,0";
 
 Resulting in the following output:
 ```
