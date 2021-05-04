@@ -5,14 +5,7 @@ This repository is the service code for the Raspberry Pi.
 
 The Node.js app lives in the **AMPi-Node** folder.
 
-It also has alpha-level code for the Pandora Player, called **pandorasbox** that is controlled via the web browser, and not yet through the AMPi interface.
-
 For the code running on the Arduino Nano, go to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
-
-First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
-
-![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display/main/firstprototype-top.jpg)
-![Back Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display/main/firstprototype-back.jpg)
 
 # AMPi features
 
@@ -29,6 +22,20 @@ First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
 
 For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
+# pandorasbox - Pandora Music player
+
+This alpha-level code for the Pandora Player, called **pandorasbox** that is controlled via the web browser, and not yet through the AMPi interface.  It sends keyboard strokes over an [Express](https://expressjs.com/) Node.js application to control a local instance of [Pianobar](https://github.com/PromyLOPh/pianobar)
+
+https://raw.githubusercontent.com/bjaan/AMPi-Service/main/pandorasbox-playing.png)
+https://raw.githubusercontent.com/bjaan/AMPi-Service/main/pandorasbox-channellist.png)
+
+# First prototype (WIP)
+
+Contains a Raspberry Pi Model 3 and an Arduino Nano
+
+![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-top.jpg)
+![Back Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-back.jpg)
+
 # TODO / WIP
 
 * Front & Back Panel Label - with level indicators and indications what the knobs do
@@ -42,8 +49,10 @@ For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](h
 # Required software
 
 * Raspbian GNU/Linux 10 (buster)
-* Node.js 13.5.0+ for running the service - installed from the Raspbian repository using `apt get install node`
+* Node.js 13.5.0+ for running the service - installed from the Raspbian repository using `sudo apt-get install node`
 * [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according the [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe)
+* Samba service to have a WINS local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
+* Pianobar - installed from the Raspbian repository using `sudo apt-get install pianobar`
 
 
 # Configuration changes
@@ -73,6 +82,26 @@ max_framebuffers=2
 
 enable_uart=1
 hdmi_blanking=2
+```
+
+* ALSA (sound system) configuration in `/etc/asound.conf`
+```
+pcm.!default {
+  type hw card 0
+}
+ctl.!default {
+  type hw card 0
+}
+```
+This file is set to use card 0, but if your souncard has a different number, e.g., change this line: slave.pcm "plughw:0,0";
+
+Resulting in the following output:
+```
+pi@ampi:~ $ aplay -l
+**** List of PLAYBACK Hardware Devices ****
+card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplus], device 0: HiFiBerry DAC+ HiFi pcm512x-hifi-0 [HiFiBerry DAC+ HiFi pcm512x-hifi-0]
+  Subdevices: 0/1
+  Subdevice #0: subdevice #0
 ```
 
 * Shairport config changes in `/etc/shairport-sync.conf`:

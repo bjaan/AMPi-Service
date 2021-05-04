@@ -59,6 +59,14 @@ function serialReceiveByte(buffer /*1 byte*/) {
     }
 }
 
+function powerOff() {
+	exec("sudo poweroff", (error, stdout, stderr) => {
+		if (error) { console.log(`error: ${error.message}`); return; }
+		if (stderr) { console.log(`stderr: ${stderr}`);	return;	}
+		console.log(`stdout: ${stdout}`);
+	});
+}
+
 // Service Monitor
 
 function checkShairport() {
@@ -67,6 +75,7 @@ function checkShairport() {
 			if (shairportActive /*only once*/) {
 				console.log("shairport down");
 				serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
+				serialSendStatus("");
 				shairportOpen = false;
 			}
 			shairportActive = false;
@@ -134,11 +143,10 @@ const PPP_T_POWER_OFF_REQUEST = 0x70; //p    <p>
 function processReceiveBuffer() {
 	switch (receiveBuffer[PPP_NDX_COMMAND]) {  //first byte to be expected signal/command type - second (depending on the command) is the size in bytes of the payload
     case PPP_T_POWER_OFF_REQUEST: /*Power Off command sent by Raspberry Pi and we need to shut down! */ 
-		exec("sudo poweroff", (error, stdout, stderr) => {
-			if (error) { console.log(`error: ${error.message}`); return; }
-			if (stderr) { console.log(`stderr: ${stderr}`);	return;	}
-			console.log(`stdout: ${stdout}`);
-			serialSend(Buffer.from('<p>', 'ascii'), () => console.log('Power Off confirmation (p) sent'));
+		serialSend(Buffer.from('<p>', 'ascii'), () => {
+			setInterval(function() {
+				powerOff();
+			}, 2000);
 		});
       break;
       
