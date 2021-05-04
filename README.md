@@ -11,17 +11,18 @@ For the code running on the Arduino Nano, go to [AMPi-Display-Interface](https:/
 
 First prototype (WIP) with Raspberry Pi Model 3 and an Arduino Nano
 
-![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display/main/firstprototype-top.jpg)
+![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display/main/firstprototype-action.gif)
 ![Back Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display/main/firstprototype-back.jpg)
 
 # AMPi features
 
 * 2 x 100W Class D Audio Amplifier
-* 3 switchable analog audio channels using a relay array through a rotary switch
+* Built-in internet audio streaming device with high-quality Digital Audio Converter (DAC), e.g. FLAC 24-bits 192khz
+* Built-in pre-amplifier and audio transformers, to allow full galvanic separation between external audio equipment and the DAC and AMPi
+* Computer-controlled interface that controls the screen, manages the power of and the services running on the built-in audio streaming device
+* 3 switchable analog audio input channels using a relay array through a rotary switch
 * Audio level indicator
-* Clear audio using build-in pre-amp and audio transformers, to allow full galvanic separation between the external audio equipment and AMPi
-* Computer-controlled interface that controls screen, the power of and the service running on the built-in audio streaming device
-* Built-in power supply
+* Built-in mains power supply (100-230V)
 * AirPlay playback using [**Shairport Sync**](https://github.com/mikebrady/shairport-sync). AMPi identifies itself as a AirPlay network player, where your iPhone or iTunes on a Mac can be connected to, to play music.  You can also use iTunes on Windows 10 to play music through AirPlay or route your audio to AMPi using [**TuneBlade**](http://www.tuneblade.com/)
 * Bluetooth 4.2 Playback, this overrides everything and directly accessible after power-up
 * Pandora.com music player (WIP), using [Pianobar](https://github.com/PromyLOPh/pianobar)
