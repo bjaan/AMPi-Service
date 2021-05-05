@@ -24,7 +24,9 @@ For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](h
 
 # pandorasbox - Pandora Music player
 
-This repository also alpha-level code for the Pandora Player, called **pandorasbox** that is controlled via the web browser, and not yet through the AMPi interface.  It sends keyboard strokes over an [Express](https://expressjs.com/) Node.js application to control a local instance of [Pianobar](https://github.com/PromyLOPh/pianobar)
+This repository also has (alpha-level) code for a Pandora Player remote control application, called **pandorasbox**, that is allows control via Web Browser, and not yet through the AMPi interface.  It sends keyboard strokes over an [Express](https://expressjs.com/) Node.js application to control a local instance of [Pianobar](https://github.com/PromyLOPh/pianobar), and displays the cover art of the currently playing song.
+
+This will be moved to a seperate repository soon.
 
 ![pandorasbox - playing a song in the web browser](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/pandorasbox-playing.png)
 ![pandorasbox - showing the available channels on Pandora.com which can be switched to](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/pandorasbox-channellist.png)
