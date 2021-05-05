@@ -103,7 +103,7 @@ card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplus], device 0: HiFiBerry DAC+ Hi
   Subdevice #0: subdevice #0
 ```
 
-* Shairport config changes in `/etc/shairport-sync.conf`:
+* Shairport Sync configuration changes in `/etc/shairport-sync.conf`:
 ```sh
 metadata =
 {
@@ -210,7 +210,7 @@ decrypt_password = R=U!LH$O2B#
 encrypt_password = 6#26FRL$ZWD
 ```
 
-* Pianobar event Python script, needed by Pianobar to communicate when playback events happen
+* Pianobar event Python script `/home/pi/.config/pianobar/eventcmd.py`, needed by Pianobar to communicate when playback events happen
 
 ```python
 #!/usr/bin/env python
@@ -241,6 +241,6 @@ with open(fnevent, 'w') as f:
 	f.close()
 ```
 
-* Pianobar command file (control fifo), needed by Pianobar to communicate commands
+* Pianobar command file (control fifo) `/home/pi/.config/pianobar/.config/pianobar/ctl`, needed by Pianobar to communicate commands
 
 Execute `mkfifo /home/pi/.config/pianobar/.config/pianobar/ctl` to the create file
