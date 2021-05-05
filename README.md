@@ -241,6 +241,6 @@ with open(fnevent, 'w') as f:
 	f.close()
 ```
 
-* Pianobar command file (control fifo) `/home/pi/.config/pianobar/.config/pianobar/ctl`, needed by Pianobar to communicate commands
+* Pianobar command file (control fifo) `/home/pi/.config/pianobar/ctl`, needed by Pianobar to communicate commands
 
-Execute `mkfifo /home/pi/.config/pianobar/.config/pianobar/ctl` to the create file
+Execute `mkfifo /home/pi/.config/pianobar/ctl` to the create file
