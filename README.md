@@ -51,7 +51,7 @@ Contains a Raspberry Pi Model 3 and an Arduino Nano
 # Required software
 
 * Raspbian GNU/Linux 10 (buster) - I installed a new Raspberry Pi image with the `ampi` hostname and connected it to the Internet
-* Node.js 13.5.0+ for running the service - installed from the Raspbian repository using `sudo apt-get install node`
+* Node.js 10.x for running the service - installed from the Raspbian repository using `sudo apt-get install npm nodejs`
 * [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according the [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
 * Pianobar - installed from the Raspbian repository using `sudo apt-get install pianobar`, and set-up the service, but make sure is **disabled** to restart at every reboot - see below
@@ -245,4 +245,4 @@ with open(fnevent, 'w') as f:
 
 * Pianobar command file (control fifo) `/home/pi/.config/pianobar/ctl`, needed by Pianobar to communicate commands
 
-Execute `mkfifo /home/pi/.config/pianobar/ctl` to the create file
+Execute `mkfifo /home/pi/.config/pianobar/ctl` to create the file
