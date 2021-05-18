@@ -1,13 +1,17 @@
 const SerialPort = require('serialport');
 const ByteLength = require('@serialport/parser-byte-length');
 const ShairportReader = require('shairport-sync-reader');
+const fs = require('fs');
+const loadIniFile = require('read-ini-file');
 const { exec } = require("child_process");
 
 let shairportActive = false;
 let shairportOpen = false;
 
 let pianobarActive = false;
-//let pianobarOpen = false;
+let pianobarNowPlayingListener = function (curr, prev) { readPianobarInfo(); };
+
+// Serial Commenication
 
 const MAX_MESSAGE = 200;
 const MAX_TEXT = 35;
@@ -17,6 +21,16 @@ let receiveBuffer = Buffer.alloc(MAX_MESSAGE);
 let receiveIndex = 0;
 let receiveSizeLeft = 0;
 
+// Configuration
+
+const SHAIRPORT_METADATA = '/tmp/shairport-sync-metadata';
+const PIANOBAR_NOWPLAYING = '/home/pi/.config/pianobar/nowplaying';
+
+// Playing Song Information to share with  
+
+let songStartTime = null;
+let songEndTime = null;
+   
 // Utility Functions
 
 function serialSend(buf, success) {
@@ -62,6 +76,24 @@ function serialReceiveByte(buffer /*1 byte*/) {
     }
 }
 
+function powerOnConfirm() {
+	return new Promise((resolve, reject) => {
+		serialSend(Buffer.from('<P>', 'ascii'), () => { console.log('Power On (P) sent'); resolve(); });
+	});
+}
+
+function block() {
+	return new Promise((resolve, reject) => {
+		serialSend(Buffer.from('<B>', 'ascii'), () => { console.log('Block command sent'); resolve(); });
+	});
+}
+
+function unblock() {
+	return new Promise((resolve, reject) => {
+		serialSend(Buffer.from('<b>', 'ascii'), () => { console.log('Unblock command sent'); resolve(); });
+	});
+}
+
 function powerOff() {
 	exec("sudo poweroff", (error, stdout, stderr) => {
 		if (error) { console.log(`error: ${error.message}`); return; }
@@ -74,54 +106,67 @@ function powerOff() {
 // Service Monitor
 
 function checkShairport() {
-	exec("service shairport-sync status | grep inactive", (error, stdout, stderr) => {
-		if (stdout.includes("inactive")) {
-			if (shairportActive /*only once*/) {
-				console.log("shairport down");
-				serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
-				serialSendStatus("");
-				shairportOpen = false;
+	return new Promise((resolve, reject) => {
+		exec("service shairport-sync status | grep inactive", (error, stdout, stderr) => {
+			if (stdout.includes("inactive")) {
+				if (shairportActive /*only once*/) {
+					console.log("shairport down");
+					serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
+					serialSendStatus("");
+					shairportOpen = false;
+				}
+				shairportActive = false;
+			} else {
+				if (!shairportOpen /*when not connected*/ && !shairportActive /*only once*/) {
+					console.log("shairport up");
+					serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Airplay WHITE sent'));
+				}
+				shairportActive = true;
 			}
-			shairportActive = false;
-		} else {
-			if (!shairportOpen /*when not connected*/ && !shairportActive /*only once*/) {
-				console.log("shairport up");
-				serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Airplay WHITE sent'));
-			}
-			shairportActive = true;
-		}
+			resolve();
+		});
 	});
 }
 
 function checkPianobar() {
-	exec("service pianobar status | grep inactive", (error, stdout, stderr) => {
-		if (stdout.includes("inactive")) {
-			if (pianobarActive /*only once*/) {
-				console.log("pianobar down");
-				serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
-				serialSendStatus("");
-				//pianobarOpen = false;
+	return new Promise((resolve, reject) => {
+		exec("service pianobar status | grep inactive", (error, stdout, stderr) => {
+			if (stdout.includes("inactive")) {
+				if (pianobarActive /*only once*/) {
+					console.log("pianobar down");
+					serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
+					serialSendStatus("");
+					fs.unwatchFile(PIANOBAR_NOWPLAYING, pianobarNowPlayingListener);
+					songStartTime = null; songEndTime = null;
+				}
+				pianobarActive = false;
+			} else {
+				if (!pianobarActive /*only once*/) {
+					console.log("pianobar up");
+					serialSend(Buffer.from('<N\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Pandora WHITE sent'));
+					readPianobarInfo();
+					fs.watchFile(PIANOBAR_NOWPLAYING, pianobarNowPlayingListener);
+				}
+				pianobarActive = true;
 			}
-			pianobarActive = false;
-		} else {
-			if (/*!pianobarOpen*/ /*when not connected*/ /*&&*/ !pianobarActive /*only once*/) {
-				console.log("pianobar up");
-				serialSend(Buffer.from('<N\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Pandora WHITE sent'));
-			}
-			pianobarActive = true;
-		}
+			resolve();
+		});
 	});
 }
 
 function checkStatusses() {
-	await checkShairport()
-	await checkPianobar();
+	checkShairport()
+	.then(checkPianobar());
+	if (songStartTime && songEndTime) {
+		console.log("CURRENT START TIME: " + songStartTime);
+		console.log("CURRENT END TIME: " + songEndTime);
+	}
 }
 setInterval(checkStatusses, 5000);
 
 // Shairport Sync Management
 
-let shairPort = new ShairportReader({ path: '/tmp/shairport-sync-metadata' });
+let shairPort = new ShairportReader({ path: SHAIRPORT_METADATA });
 shairPort.on('pbeg',readShairPortBegin);
 shairPort.on('pend',readShairPortEnd);
 
@@ -144,35 +189,66 @@ function readShairPortEnd(data) {
 }
 
 function shutdownShairport() {
-	exec("sudo service shairport-sync stop", (error, stdout, stderr) => {
-		console.log('Airplay stopped.');
-		checkShairport();
+	return new Promise((resolve, reject) => {
+		if (!shairportActive) 
+			resolve();
+		else {
+			exec("sudo service shairport-sync stop", (error, stdout, stderr) => {
+				console.log('Airplay stopped.');
+				return checkShairport();
+			});
+		}
 	});
 }
 
 function startupShairport() {
-	exec("sudo service shairport-sync start", (error, stdout, stderr) => {
-		console.log('Airplay started.');
-		checkShairport();
+	return new Promise((resolve, reject) => {
+		if (!shairportActive) 
+			resolve();
+		else {
+			exec("sudo service shairport-sync start", (error, stdout, stderr) => {
+				console.log('Airplay started.');
+				return checkShairport();
+			});
+		}
 	});
 }
 
 // Pianobar Management
 
 function shutdownPianobar() {
-	exec("service pianobar stop", (error, stdout, stderr) => {
-		console.log('Pianobar stopped.');
-		checkPianobar();
+	return new Promise((resolve, reject) => {
+		if (!pianobarActive)
+			resolve();
+		else {
+			exec("sudo service pianobar stop", (error, stdout, stderr) => {
+				console.log('Pianobar stopped.');
+				return checkPianobar();
+			});
+		}
 	});
 }
 
 function startupPianobar() {
-	exec("service pianobar start", (error, stdout, stderr) => {
-		console.log('Pianobar started.');
-		checkPianobar();
+	return new Promise((resolve, reject) => {
+		if (pianobarActive) {
+			resolve();
+		} else {
+			exec("sudo service pianobar start", (error, stdout, stderr) => {
+				console.log('Pianobar started.');
+				return checkPianobar();
+			});
+		}
 	});
 }
 
+function readPianobarInfo() {
+   let pianobarNowPlaying = loadIniFile.sync(PIANOBAR_NOWPLAYING);
+   console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}` );
+   let songDuration = parseInt(pianobarNowPlaying.songDuration);
+   songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
+   songEndTime = new Date(); songEndTime.setSeconds(songStartTime.getSeconds() + songDuration);
+}
 
 // Serial Management
 
@@ -184,11 +260,12 @@ serial0.on('error', showError);
 
 function showPortOpen() {
 	console.log('port open. Data rate: ' + serial0.baudRate);
-	serialSend(Buffer.from('<P>', 'ascii'), () => console.log('Power On (P) sent'));
-	checkStatusses();
+	unblock()
+		.then(powerOnConfirm)
+		.then(() => checkStatusses());
 }
 
-function showPortClose() { console.log(' serial port closed.'); }
+function showPortClose() { console.log('serial port closed.'); }
 
 function showError(error) { console.log('Serial port error: ' + error); }
 
@@ -209,8 +286,11 @@ function processReceiveBuffer() {
       break;
     case PPP_PANDORA_MUSIC:
 	  console.log('Pandora Music command.');
-	  if (shairportActive) shutdownShairport();
-	  if (!pianobarActive) startupPianobar();
+	  block()
+		.then(shutdownShairport)
+		.then(startupPianobar)
+		.then(unblock)
+		.then(() => serialSendStatus("Pandora ready."));
 	  break;
     default:
       console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMETED\n");
