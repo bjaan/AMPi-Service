@@ -67,6 +67,7 @@ function powerOff() {
 		if (error) { console.log(`error: ${error.message}`); return; }
 		if (stderr) { console.log(`stderr: ${stderr}`);	return;	}
 		console.log(`stdout: ${stdout}`);
+		console.log('Powering off...');
 	});
 }
 
@@ -113,8 +114,8 @@ function checkPianobar() {
 }
 
 function checkStatusses() {
-	checkShairport();
-	checkPianobar();
+	await checkShairport()
+	await checkPianobar();
 }
 setInterval(checkStatusses, 5000);
 
@@ -125,8 +126,8 @@ shairPort.on('pbeg',readShairPortBegin);
 shairPort.on('pend',readShairPortEnd);
 
 function readShairPortBegin(data) {
-	console.log("shairport pbeg " + JSON.stringify(data));
-	serialSend(Buffer.from('<R\x03\x10\x79\xE6>', 'ascii'), () => {
+	console.log("sudo shairport pbeg " + JSON.stringify(data));
+	serialSend(Buffer.from('<R\x03\x00\xBE\xFF>', 'ascii'), () => {
 		shairportOpen = true;
 		console.log('Airplay BLUE sent');
 	});
@@ -134,13 +135,44 @@ function readShairPortBegin(data) {
 }
 
 function readShairPortEnd(data) {
-	console.log("shairport pend " + JSON.stringify(data));
+	console.log("sudo shairport pend " + JSON.stringify(data));
 	serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => {
 		shairportOpen = false;
 		console.log('Airplay WHITE sent');
 	});
 	serialSendStatus("");
 }
+
+function shutdownShairport() {
+	exec("sudo service shairport-sync stop", (error, stdout, stderr) => {
+		console.log('Airplay stopped.');
+		checkShairport();
+	});
+}
+
+function startupShairport() {
+	exec("sudo service shairport-sync start", (error, stdout, stderr) => {
+		console.log('Airplay started.');
+		checkShairport();
+	});
+}
+
+// Pianobar Management
+
+function shutdownPianobar() {
+	exec("service pianobar stop", (error, stdout, stderr) => {
+		console.log('Pianobar stopped.');
+		checkPianobar();
+	});
+}
+
+function startupPianobar() {
+	exec("service pianobar start", (error, stdout, stderr) => {
+		console.log('Pianobar started.');
+		checkPianobar();
+	});
+}
+
 
 // Serial Management
 
@@ -163,7 +195,8 @@ function showError(error) { console.log('Serial port error: ' + error); }
 let serialParser = serial0.pipe(new ByteLength({length: 1}))
 serialParser.on('data', serialReceiveByte) // will have 1 byte per data event
 
-const PPP_T_POWER_OFF_REQUEST = 0x70; //p    <p>
+const PPP_T_POWER_OFF_REQUEST = 0x70; //p   <p>
+const PPP_PANDORA_MUSIC       = 0x4E; //N   <N>
 
 function processReceiveBuffer() {
 	switch (receiveBuffer[PPP_NDX_COMMAND]) {  //first byte to be expected signal/command type - second (depending on the command) is the size in bytes of the payload
@@ -174,9 +207,13 @@ function processReceiveBuffer() {
 			}, 2000);
 		});
       break;
-      
+    case PPP_PANDORA_MUSIC:
+	  console.log('Pandora Music command.');
+	  if (shairportActive) shutdownShairport();
+	  if (!pianobarActive) startupPianobar();
+	  break;
     default:
-      console.log("Command " + receiveBuffer[PPP_NDX_COMMAND].toInt() + " NOT IMPLEMETED\n");
+      console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMETED\n");
       break;
   }  
 }

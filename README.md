@@ -30,7 +30,6 @@ For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](h
 Contains a Raspberry Pi Model 3 and an Arduino Nano
 
 ![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-top.jpg)
-![Back Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-back.jpg)
 
 # TODO / WIP
 
