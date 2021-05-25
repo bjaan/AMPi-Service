@@ -2,8 +2,9 @@
   "requires": true,
   "lockfileVersion": 1,
   "dependencies": {
+    "@jimp/plugin-print": "^0.16.1",
     "@serialport/parser-byte-length": "^9.0.7",
-    "child_process": "^1.0.2",
+    "jimp": "^0.16.1",
     "read-ini-file": "^3.0.1",
     "serialport": "^9.0.7",
     "shairport-sync-reader": "0.0.9"

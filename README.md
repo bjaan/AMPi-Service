@@ -39,15 +39,41 @@ Contains a Raspberry Pi Model 3 and an Arduino Nano
 * Raspberry Pi Software - further integration with the display interface component
 * Interface to enter Wi-Fi / LAN settings
 * Streaming software for Apple Music
+* Add CD Player interface for external USB drive
 * ...and more
+
+At the moment the service software is written using Node.js, future plans are to write it using Python too and to be able to provide as a build.
 
 # Required software
 
 * Raspbian GNU/Linux 10 (buster) - I installed a new Raspberry Pi image with the `ampi` hostname and connected it to the Internet
-* Node.js 10.x for running the service - installed from the Raspbian repository using `sudo apt-get install npm nodejs`
-* [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according the [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
+* Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/)
+* [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
-* Pianobar - when Pandora Music is required, see this [pandorasbox](https://github.com/bjaan/pandorasbox) repository
+* Pianobar - when Pandora Music is required, see the [pandorasbox](https://github.com/bjaan/pandorasbox) repository how to properly configure the pianobar service, make sure it is disabled on start-up
+
+The software will run under the context of the _pi_ user and therefore the home-directory is `/home/pi/`
+
+# Node.js modules
+
+* [serialport](https://www.npmjs.com/package/serialport) - access serial ports with JavaScript. Linux, OSX and Windows.
+* [jimp](https://www.npmjs.com/package/jimp) - JavaScript Image Manipulation Program
+* [read-ini-file](https://www.npmjs.com/package/read-ini-file) - read and parse an ini file
+* [shairport-sync-reader](https://www.npmjs.com/package/shairport-sync-reader) - shairport-sync metadata reader
+
+# Building & running
+
+* make sure that have installed the required software above
+* enable SSH and remote into the Raspberry Pi
+* move into the home folder `cd /home/pi/`
+* check in the portfolio `git clone https://github.com/bjaan/AMPi-Service.git`
+* Install pre-requisites for building the required node modules `sudo apt-get install build-essential`
+* move into the directory `cd AMPi-Service\AMPi-Service`
+* run `npm install` to install the Node.js modules
+* move back to the home folder `cd /home/pi/`
+* to execute: `node AMPi-Node/app.js`
+
+the ability to start as a service is not ready yet.
 
 # Configuration changes
 
