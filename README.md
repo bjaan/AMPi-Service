@@ -52,7 +52,7 @@ At the moment the service software is written using Node.js, future plans are to
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
 * Pianobar - when Pandora Music is required, see the [pandorasbox](https://github.com/bjaan/pandorasbox) repository how to properly configure the pianobar service, make sure it is disabled on start-up
 
-The software will run under the context of the _pi_ user and therefore the home-directory is `/home/pi/`
+The software will run under the context of the _pi_ user and therefore the home-directory is `/home/pi`
 
 # Node.js modules
 
@@ -61,19 +61,19 @@ The software will run under the context of the _pi_ user and therefore the home-
 * [read-ini-file](https://www.npmjs.com/package/read-ini-file) - read and parse an ini file
 * [shairport-sync-reader](https://www.npmjs.com/package/shairport-sync-reader) - shairport-sync metadata reader
 
-# Building & running
+# Building & starting
 
 * make sure that have installed the required software above
 * enable SSH and remote into the Raspberry Pi
-* move into the home folder `cd /home/pi/`
+* move into the home folder `cd /home/pi`
 * check in the portfolio `git clone https://github.com/bjaan/AMPi-Service.git`
 * Install pre-requisites for building the required node modules `sudo apt-get install build-essential`
 * move into the directory `cd AMPi-Service\AMPi-Service`
 * run `npm install` to install the Node.js modules
-* move back to the home folder `cd /home/pi/`
-* to execute: `node AMPi-Node/app.js`
+* move back to the home folder `cd /home/pi`
+* to start: `node AMPi-Node/app.js`
 
-the ability to start as a service is not ready yet.
+The ability to start as a autostart service is not ready yet, for now start it manually after booting the Raspberry Pi .
 
 # Configuration changes
 

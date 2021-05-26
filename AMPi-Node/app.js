@@ -49,26 +49,26 @@ function serialSendStatus(text) {
 
 function serialReceiveByte(buffer /*1 byte*/) {
 	let character = buffer[0];
-    if (!receiving) {
+	if (!receiving) {
 		if (character == PPP_BEGIN_FLAG) {
 			receiving = true;
 			receiveIndex = 0;
 			receiveSizeLeft = 1; //the command is expected - so 1 byte
 		}
-    } else {
-      if (character == PPP_END_FLAG && receiveSizeLeft == 0) {
-        if (receiveIndex <= PPP_NDX_LENGTH) receiveBuffer[PPP_NDX_LENGTH] = 0; //no length received - 1 byte packet like <P>
-        receiving = false;
-        processReceiveBuffer();
-      } else {
-        if (receiveIndex < MAX_MESSAGE-1) {
-          receiveBuffer[receiveIndex] = character;
-          if (receiveIndex == PPP_NDX_LENGTH) receiveSizeLeft = character;  
-                                         else if (receiveSizeLeft == 0) receiving = false; else receiveSizeLeft--;
-          receiveIndex++;
-        } else receiving = false;
-      } 
-    }
+	} else {
+		if (character == PPP_END_FLAG && receiveSizeLeft == 0) {
+			if (receiveIndex <= PPP_NDX_LENGTH) receiveBuffer[PPP_NDX_LENGTH] = 0; //no length received - 1 byte packet like <P>
+			receiving = false;
+			processReceiveBuffer();
+		} else {
+			if (receiveIndex < MAX_MESSAGE-1) {
+				receiveBuffer[receiveIndex] = character;
+				if (receiveIndex == PPP_NDX_LENGTH) receiveSizeLeft = character;  
+				else if (receiveSizeLeft == 0) receiving = false; else receiveSizeLeft--;
+				receiveIndex++;
+			} else receiving = false;
+		}
+	}
 }
 
 function powerOnConfirm() {
@@ -239,14 +239,14 @@ function startupPianobar() {
 }
 
 function readPianobarInfo() {
-   let pianobarNowPlaying = loadIniFile.sync(PIANOBAR_NOWPLAYING);
-   console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}` );
-   let songDuration = parseInt(pianobarNowPlaying.songDuration);
-   PLAYER_DATA.artist = pianobarNowPlaying.artist;
-   PLAYER_DATA.title = pianobarNowPlaying.title;
-   PLAYER_DATA.songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
-   PLAYER_DATA.songEndTime = new Date(); PLAYER_DATA.songEndTime.setSeconds(PLAYER_DATA.songStartTime.getSeconds() + songDuration);
-   updatePlayerUI();
+	let pianobarNowPlaying = loadIniFile.sync(PIANOBAR_NOWPLAYING);
+	console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}` );
+	let songDuration = parseInt(pianobarNowPlaying.songDuration);
+	PLAYER_DATA.artist = pianobarNowPlaying.artist;
+	PLAYER_DATA.title = pianobarNowPlaying.title;
+	PLAYER_DATA.songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
+	PLAYER_DATA.songEndTime = new Date(); PLAYER_DATA.songEndTime.setSeconds(PLAYER_DATA.songStartTime.getSeconds() + songDuration);
+	updatePlayerUI();
 }
 
 // Player UI 
@@ -254,8 +254,8 @@ function readPianobarInfo() {
 const PLAYER_DATA = {
 	artist : null,
 	title : null,
-    songStartTime : null,
-    songEndTime : null   
+	songStartTime : null,
+	songEndTime : null   
 };
 
 const CANVAS_WIDTH = 150;
@@ -275,23 +275,22 @@ blockbuffer[4 /*y*/] = 0;
 
 function convertRGB888toRGB565(r, g, b) 
 {
-  r = (r * 249 + 1014) >> 11;
-  g = (g * 253 + 505) >> 10;
-  b = (b * 249 + 1014) >> 11;
-  let RGB565 = 0;
-  RGB565 = RGB565 | (r << 11);
-  RGB565 = RGB565 | (g << 5);
-  RGB565 = RGB565 | b;
-
-  return RGB565;
+	r = (r * 249 + 1014) >> 11;
+	g = (g * 253 + 505) >> 10;
+	b = (b * 249 + 1014) >> 11;
+	let RGB565 = 0;
+	RGB565 = RGB565 | (r << 11);
+	RGB565 = RGB565 | (g << 5);
+	RGB565 = RGB565 | b;
+	return RGB565;
 }
 
 let prev_artist = '';
 let prev_title = '';
 
 function updatePlayerUI() {
-  Jimp.loadFont(Jimp.FONT_SANS_16_BLACK)
-    .then(font => 
+	Jimp.loadFont(Jimp.FONT_SANS_16_BLACK)
+	.then(font => 
 	{
 		canvas1.print(font, 0, 30, prev_artist);
 		canvas1.print(font, 0, 50, prev_title);
@@ -399,14 +398,14 @@ const PPP_T_READY             = 0x79; //y   <y>
 
 function processReceiveBuffer() {
 	switch (receiveBuffer[PPP_NDX_COMMAND]) {  //first byte to be expected signal/command type - second (depending on the command) is the size in bytes of the payload
-    case PPP_T_POWER_OFF_REQUEST: /*Power Off command sent by Raspberry Pi and we need to shut down! */ 
+	case PPP_T_POWER_OFF_REQUEST: /*Power Off command sent by Raspberry Pi and we need to shut down! */ 
 		serialSend(Buffer.from('<p>', 'ascii'), () => {
 			setInterval(function() {
 				powerOff();
 			}, 2000);
 		});
-      break;
-    case PPP_PANDORA_MUSIC:
+		break;
+	case PPP_PANDORA_MUSIC:
 	  console.log('Pandora Music command.');
 	  block()
 		.then(shutdownShairport())
@@ -415,10 +414,10 @@ function processReceiveBuffer() {
 		.then(new Promise((resolve) => { serialSendStatus("Pandora ready."); resolve() }));
 	  break;
 	case PPP_T_READY:
-	  sendUIUpdates();
-	  break;
-    default:
-      console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMETED\n");
-      break;
-  }  
+		sendUIUpdates();
+		break;
+	default:
+		console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMETED\n");
+		break;
+	}
 }
