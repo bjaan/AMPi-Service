@@ -32,6 +32,10 @@ Contains a Raspberry Pi Model 3 and an Arduino Nano
 
 ![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-top.jpg)
 
+Streaming iTunes over Airplay is displaying the current song and artwork:
+
+![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/images/playing.gif)
+
 # TODO / WIP
 
 * Front & Back Panel Label - with level indicators and indications what the knobs do
