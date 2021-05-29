@@ -26,6 +26,7 @@ let receiveSizeLeft = 0;
 
 const SHAIRPORT_METADATA = '/tmp/shairport-sync-metadata';
 const PIANOBAR_NOWPLAYING = '/home/pi/.config/pianobar/nowplaying';
+const PIANOBAR_CTL = '/home/pi/.config/pianobar/ctl';
 
 // Utility Functions
 
@@ -201,7 +202,7 @@ function readShairPortMeta(data) {
 	PLAYER_DATA.songStartTime = new Date();
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
 	PLAYER_DATA.image = null;
-	updatePlayerUI();
+	updatePlayerUI(false);
 }
 
 function readShairPortPict(data) {
@@ -210,7 +211,7 @@ function readShairPortPict(data) {
         .then(function(image) {
 			 image.scaleToFit(CANVAS_HEIGHT, Jimp.AUTO, Jimp.RESIZE_BEZIER)
 			 PLAYER_DATA.image = image;
-			 updatePlayerUI();
+			 updatePlayerUI(false);
 		});
 }
 
@@ -275,14 +276,26 @@ function readPianobarInfo() {
 	let songDuration = parseInt(pianobarNowPlaying.songDuration)*1000; //convert to milliseconds
 	PLAYER_DATA.artist = pianobarNowPlaying.artist;
 	PLAYER_DATA.title = pianobarNowPlaying.title;
+	PLAYER_DATA.album = pianobarNowPlaying.album;
 	PLAYER_DATA.songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
-	updatePlayerUI();
+	if (pianobarNowPlaying.coverArt) {
+		Jimp.read(pianobarNowPlaying.coverArt, (err, image) => {
+			if (err) PLAYER_DATA.image = null;
+			else {
+				image.scaleToFit(CANVAS_HEIGHT, Jimp.AUTO, Jimp.RESIZE_BEZIER)
+				PLAYER_DATA.image = image;
+			}
+			updatePlayerUI(false);
+		});
+		PLAYER_DATA.image
+	} else updatePlayerUI(false);
 }
 
 // Player UI 
 
 let ready = true;
+let HUDvisible = false;
 
 const PLAYER_DATA = {
 	artist : null,
@@ -297,6 +310,7 @@ const CANVAS_BLOCK_HEIGHT = 5;
 
 const canvas1 = new Jimp(CANVAS_WIDTH, CANVAS_HEIGHT, 0x000000FF);
 const canvas2 = new Jimp(CANVAS_WIDTH, CANVAS_HEIGHT, 0x000000FF);
+const canvasHUD = new Jimp(CANVAS_WIDTH, CANVAS_HEIGHT, 0x000000FF);
 
 const blockdatasize = 2 + (CANVAS_BLOCK_HEIGHT * CANVAS_BLOCK_HEIGHT * 2);
 let blockbuffer = Buffer.alloc(2 /* <> */ + 2 /* command + size */ + blockdatasize /* block data */);
@@ -306,8 +320,13 @@ blockbuffer[1 /*command*/] = 68 /*D*/; blockbuffer[2 /*payloadsize*/] = blockdat
 blockbuffer[3 /*x*/] = 0;
 blockbuffer[4 /*y*/] = 0;
 
-let whiteFont = null;
-Jimp.loadFont(Jimp.FONT_SANS_16_WHITE).then(font => whiteFont = font );
+function loadWhiteFont() { 
+	return Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
+}
+
+function loadBlackFont() { 
+	return Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
+}
 
 function convertRGB888toRGB565(r, g, b) 
 {
@@ -348,19 +367,49 @@ function clearCanvas(image, red, green, blue) {
 let prev_artist = null;
 let prev_title = null;
 let playerShowCounter = 0;
+let menuSelected = 0;
 
-function updatePlayerUI() {
-	clearCanvas(canvas1, 0, 0, 0);
-	if (!PLAYER_DATA.image) {
-		if (PLAYER_DATA.artist) canvas1.print(whiteFont, 0, 30, PLAYER_DATA.artist);
-		if (PLAYER_DATA.title) canvas1.print(whiteFont, 0, 50, PLAYER_DATA.title);
-		prev_artist = PLAYER_DATA.artist;
-		prev_title = PLAYER_DATA.title;
-	} else {
-		canvas1.composite(PLAYER_DATA.image, 0, 0); 
-		canvas1.composite(PLAYER_DATA.image, CANVAS_WIDTH - CANVAS_HEIGHT, 0); 
-		canvas1.blur(2);
-		canvas1.composite(PLAYER_DATA.image, (CANVAS_WIDTH - CANVAS_HEIGHT) / 2, 0); 
+function updateHUD() {
+	return new Promise((resolve, reject) => {
+		canvasHUD.scan(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, function(x, y, idx) { this.bitmap.data[idx] = 128; this.bitmap.data[idx+1] = 128;  this.bitmap.data[idx+2] = 128; this.bitmap.data[idx+3] = (x < 10 || x > 60 || y < 10 || y > 42 ? 0 : 255);});
+		loadWhiteFont()
+			.then((whiteFont) => {
+				canvasHUD.print(whiteFont, 10, 10, (menuSelected == 0 ? "Next <" : "Next"));
+				canvasHUD.print(whiteFont, 10, 23, (menuSelected == 1 ? "Exit <" : "Exit"));
+				console.log("HUD updated.");
+				resolve();
+			});
+	});
+}
+
+function updatePlayerUI(onlyPosition) {
+	if (!onlyPosition) {
+		clearCanvas(canvas1, 0, 0, 0);
+		if (!PLAYER_DATA.image) {
+			loadWhiteFont()
+				.then((whiteFont) => {
+					if (PLAYER_DATA.artist) canvas1.print(whiteFont, 5, 30, PLAYER_DATA.artist);
+					if (PLAYER_DATA.title) canvas1.print(whiteFont, 5, 50, PLAYER_DATA.title);
+					prev_artist = PLAYER_DATA.artist;
+					prev_title = PLAYER_DATA.title;
+				});
+		} else {
+			canvas1.composite(PLAYER_DATA.image, 0, 0); 
+			canvas1.composite(PLAYER_DATA.image, CANVAS_WIDTH - CANVAS_HEIGHT, 0); 
+			canvas1.blur(4);
+			canvas1.composite(PLAYER_DATA.image, (CANVAS_WIDTH - CANVAS_HEIGHT) / 2, 0); 
+		}
+	}
+	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
+		let length = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
+		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
+		length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / length);
+		canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
+		length -= CANVAS_HEIGHT;
+		canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
+	}
+	if (!onlyPosition) {
+		if (HUDvisible) canvas1.composite(canvasHUD, 0, 0); 
 	}
 	playerShowCounter = 0;
 	sendUIUpdates();
@@ -437,26 +486,23 @@ function checkPlayerInfo() {
 		let length = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		if (current != last_current && current > 5 && current % 5 == 0) { //after 5 secs every 5 sec
-			length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / length);
-			canvas1.scan(0, 0, 3, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
-			length -= CANVAS_HEIGHT;
-			canvas1.scan(0, CANVAS_HEIGHT-3, length, 3, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
-			sendUIUpdates();
+			updatePlayerUI(true);
 			current = last_current;
 		} else {
-			if (playerShowCounter > 60) 
-				playerShowCounter = 0;
-			if (playerShowCounter < 20) {
+			if (playerShowCounter < 6) { /*do nothing*/ }
+			else if (playerShowCounter > 59) 
+				playerShowCounter = 0
+			else if (playerShowCounter < 23) {
 				if (prev_title_info !== PLAYER_DATA.title || prev_info !== PLAYER_DATA.title) {
 					if (PLAYER_DATA.title) serialSendStatus(PLAYER_DATA.title);
 					prev_title_info = PLAYER_DATA.title; prev_info = PLAYER_DATA.title;
 				}
-			} else if (playerShowCounter < 40) {
+			} else if (playerShowCounter < 41) {
 				if (prev_artist_info !== PLAYER_DATA.artist || prev_info !== PLAYER_DATA.artist) {
 					if (PLAYER_DATA.artist) serialSendStatus(PLAYER_DATA.artist);
 					prev_artist_info = PLAYER_DATA.artist; prev_info = PLAYER_DATA.artist;
 				}
-			} else if (playerShowCounter < 60) {
+			} else if (playerShowCounter < 59) {
 				if (prev_album_info !== PLAYER_DATA.album || prev_info !== PLAYER_DATA.album) {
 					if (PLAYER_DATA.album) serialSendStatus(PLAYER_DATA.album);
 					prev_album_info = PLAYER_DATA.album; prev_info = PLAYER_DATA.album;
@@ -467,26 +513,26 @@ function checkPlayerInfo() {
 	}
 	playerShowCounter++;
 }
-setInterval(checkPlayerInfo, 500);
+setInterval(checkPlayerInfo, 1000);
 
 // Serial Management
 
 let serial0 = new SerialPort('/dev/serial0', { baudRate: 115200 });
 
-serial0.on('open', showPortOpen);
-serial0.on('close', showPortClose);
-serial0.on('error', showError);
+serial0.on('open', serialPortOpen);
+serial0.on('close', serialPortClose);
+serial0.on('error', serialError);
 
-function showPortOpen() {
+function serialPortOpen() {
 	console.log('port open. Data rate: ' + serial0.baudRate);
 	unblock()
 		.then(powerOnConfirm())
 		.then(() => checkStatusses());
 }
 
-function showPortClose() { console.log('serial port closed.'); }
+function serialPortClose() { console.log('serial port closed.'); }
 
-function showError(error) { console.log('Serial port error: ' + error); }
+function serialError(error) { console.log('Serial port error: ' + error); }
 
 let serialParser = serial0.pipe(new ByteLength({length: 1}))
 serialParser.on('data', serialReceiveByte) // will have 1 byte per data event
@@ -494,6 +540,9 @@ serialParser.on('data', serialReceiveByte) // will have 1 byte per data event
 const PPP_T_POWER_OFF_REQUEST = 0x70; //p   <p>
 const PPP_PANDORA_MUSIC       = 0x4E; //N   <N>
 const PPP_T_READY             = 0x79; //y   <y>
+const PPP_T_CLICKED           = 0x4B; //K   <K>
+const PPP_T_TURNED_UP         = 0x54; //T   <T>
+const PPP_T_TURNED_DOWN       = 0x74; //t   <t>
 
 function processReceiveBuffer() {
 	switch (receiveBuffer[PPP_NDX_COMMAND]) {  //first byte to be expected signal/command type - second (depending on the command) is the size in bytes of the payload
@@ -510,14 +559,53 @@ function processReceiveBuffer() {
 		.then(shutdownShairport())
 		.then(startupPianobar())
 		.then(unblock())
-		.then(new Promise((resolve) => { serialSendStatus("Pandora ready.", resolve); }));
+		.then(serialSendStatus("Pandora ready."));
 	  break;
 	case PPP_T_READY:
 		ready = true;
 		sendUIUpdates();
 		break;
+	case PPP_T_CLICKED:
+		console.log("Clicked.");
+		
+		if (!HUDvisible) {
+			console.log("Show HUD");
+			updateHUD()
+				.then(() => {
+						menuSelected = 0;
+						HUDvisible = true;
+						updatePlayerUI();
+					});
+		} else {
+			if (menuSelected == 0) {
+				const fw = fs.openSync(PIANOBAR_CTL, 'w') // blocked until a reader attached
+				fs.writeSync(fw, 'n')
+				fs.closeSync(fw);
+				serialSendStatus("* next");
+				HUDvisible = false;
+			} else if (menuSelected == 1) {
+				console.log("Hide HUD.");
+				HUDvisible = false;
+			}
+			updatePlayerUI();
+		}
+		break;
+	case PPP_T_TURNED_UP:
+		console.log("Turned Up.");
+		if (HUDvisible) {
+			menuSelected++; if (menuSelected == 2) menuSelected = 0;
+			updateHUD().then(() => updatePlayerUI());
+		}
+		break;
+	case PPP_T_TURNED_DOWN:
+		console.log("Turned Down.");
+		if (HUDvisible) {
+			menuSelected--; if (menuSelected == -1) menuSelected = 1;
+			updateHUD().then(() => updatePlayerUI());
+		}
+		break;
 	default:
-		console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMETED\n");
+		console.log("Command " + receiveBuffer[PPP_NDX_COMMAND] + " NOT IMPLEMENTED\n");
 		break;
 	}
 }

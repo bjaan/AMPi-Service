@@ -32,7 +32,7 @@ Contains a Raspberry Pi Model 3 and an Arduino Nano
 
 ![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-top.jpg)
 
-When playing iTunes over AirPlay, AMPi is displaying the current song and artwork:
+When playing iTunes over AirPlay or when using Pianobar to play Pandora Music, AMPi is displaying the current song and artwork:
 
 ![Playing over AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/playing.gif)
 
