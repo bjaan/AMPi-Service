@@ -6,10 +6,12 @@ const loadIniFile = require('read-ini-file');
 const { exec } = require("child_process");
 const Jimp = require('jimp');
 
+let shairportChecked = false;
 let shairportActive = false;
 let shairportOpen = false;
 
-let pianobarActive = false;
+let pianobarChecked = false;
+let pianobarActive = true;
 let pianobarNowPlayingListener = function (curr, prev) { readPianobarInfo(); };
 
 // Serial Commenication
@@ -90,6 +92,13 @@ function unblock() {
 	});
 }
 
+function hidePlayer() {
+	return new Promise((resolve, reject) => {
+		clearCanvas(canvas2, 0, 0, 0); //clear canvas as it needs to be rerendered once the the player is shown again
+		serialSend(Buffer.from('<d>', 'ascii'), () => { console.log('Hide Player command sent'); resolve(); });
+	});
+}
+
 function powerOff() {
 	exec("sudo poweroff", (error, stdout, stderr) => {
 		console.log('Powering off...');
@@ -102,7 +111,7 @@ function checkShairport() {
 	return new Promise((resolve, reject) => {
 		exec("service shairport-sync status | grep inactive", (error, stdout, stderr) => {
 			if (stdout.includes("inactive")) {
-				if (shairportActive /*only once*/) {
+				if (!shairportChecked || shairportActive /*only once*/) {
 					console.log("shairport down");
 					serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
 					serialSendStatus("");
@@ -111,12 +120,13 @@ function checkShairport() {
 				}
 				shairportActive = false;
 			} else {
-				if (!shairportOpen /*when not connected*/ && !shairportActive /*only once*/) {
+				if (!shairportChecked || !shairportOpen /*when not connected*/ && !shairportActive /*only once*/) {
 					console.log("shairport up");
 					serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Airplay WHITE sent'));
 				}
 				shairportActive = true;
 			}
+			shairportChecked = true;
 			resolve();
 		});
 	});
@@ -126,7 +136,7 @@ function checkPianobar() {
 	return new Promise((resolve, reject) => {
 		exec("service pianobar status | grep inactive", (error, stdout, stderr) => {
 			if (stdout.includes("inactive")) {
-				if (pianobarActive /*only once*/) {
+				if (!pianobarChecked || pianobarActive /*only once*/) {
 					console.log("pianobar down");
 					serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
 					serialSendStatus("");
@@ -135,7 +145,7 @@ function checkPianobar() {
 				}
 				pianobarActive = false;
 			} else {
-				if (!pianobarActive /*only once*/) {
+				if (!pianobarChecked || !pianobarActive /*only once*/) {
 					console.log("pianobar up");
 					serialSend(Buffer.from('<N\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Pandora WHITE sent'));
 					readPianobarInfo();
@@ -143,6 +153,7 @@ function checkPianobar() {
 				}
 				pianobarActive = true;
 			}
+			pianobarChecked = true;
 			resolve();
 		});
 	});
@@ -202,6 +213,7 @@ function readShairPortMeta(data) {
 	PLAYER_DATA.songStartTime = new Date();
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
 	PLAYER_DATA.image = null;
+	playerShowCounter = 0;
 	updatePlayerUI(false);
 }
 
@@ -230,7 +242,7 @@ function shutdownShairport() {
 
 function startupShairport() {
 	return new Promise((resolve, reject) => {
-		if (!shairportActive) 
+		if (shairportActive) 
 			resolve();
 		else {
 			exec("sudo service shairport-sync start", (error, stdout, stderr) => {
@@ -271,6 +283,8 @@ function startupPianobar() {
 }
 
 function readPianobarInfo() {
+	if (!pianobarActive) return; //ignore updates when it not active, e.g. when shutting off
+	if (!fs.existsSync(PIANOBAR_NOWPLAYING)) return;
 	let pianobarNowPlaying = loadIniFile.sync(PIANOBAR_NOWPLAYING);
 	console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}` );
 	let songDuration = parseInt(pianobarNowPlaying.songDuration)*1000; //convert to milliseconds
@@ -279,9 +293,11 @@ function readPianobarInfo() {
 	PLAYER_DATA.album = pianobarNowPlaying.album;
 	PLAYER_DATA.songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
+	playerShowCounter = 0;
+	//console.log(pianobarNowPlaying);
 	if (pianobarNowPlaying.coverArt) {
 		Jimp.read(pianobarNowPlaying.coverArt, (err, image) => {
-			if (err) PLAYER_DATA.image = null;
+			if (err) { console.log(err); PLAYER_DATA.image = null; }
 			else {
 				image.scaleToFit(CANVAS_HEIGHT, Jimp.AUTO, Jimp.RESIZE_BEZIER)
 				PLAYER_DATA.image = image;
@@ -371,11 +387,14 @@ let menuSelected = 0;
 
 function updateHUD() {
 	return new Promise((resolve, reject) => {
-		canvasHUD.scan(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, function(x, y, idx) { this.bitmap.data[idx] = 128; this.bitmap.data[idx+1] = 128;  this.bitmap.data[idx+2] = 128; this.bitmap.data[idx+3] = (x < 10 || x > 60 || y < 10 || y > 42 ? 0 : 255);});
 		loadWhiteFont()
 			.then((whiteFont) => {
-				canvasHUD.print(whiteFont, 10, 10, (menuSelected == 0 ? "Next <" : "Next"));
-				canvasHUD.print(whiteFont, 10, 23, (menuSelected == 1 ? "Exit <" : "Exit"));
+				canvasHUD.scan(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, function(x, y, idx) { this.bitmap.data[idx] = 128; this.bitmap.data[idx+1] = 128;  this.bitmap.data[idx+2] = 128; this.bitmap.data[idx+3] = (x < 10 || x > 65 || y < 10 || y > 58 ? 0 : 255);});
+				if (pianobarActive) {
+					canvasHUD.print(whiteFont, 10, 10, "Skip" + (menuSelected == 0 ? " <" : ""));
+					canvasHUD.print(whiteFont, 10, 23, "Close" + (menuSelected == 1 ? " <" : ""));
+					canvasHUD.print(whiteFont, 10, 36, "Stop" + (menuSelected == 2 ? " <" : ""));
+				}
 				console.log("HUD updated.");
 				resolve();
 			});
@@ -385,39 +404,36 @@ function updateHUD() {
 function updatePlayerUI(onlyPosition) {
 	if (!onlyPosition) {
 		clearCanvas(canvas1, 0, 0, 0);
-		if (!PLAYER_DATA.image) {
-			loadWhiteFont()
-				.then((whiteFont) => {
-					if (PLAYER_DATA.artist) canvas1.print(whiteFont, 5, 30, PLAYER_DATA.artist);
-					if (PLAYER_DATA.title) canvas1.print(whiteFont, 5, 50, PLAYER_DATA.title);
-					prev_artist = PLAYER_DATA.artist;
-					prev_title = PLAYER_DATA.title;
-				});
-		} else {
-			canvas1.composite(PLAYER_DATA.image, 0, 0); 
+		if (PLAYER_DATA.image) {
 			canvas1.composite(PLAYER_DATA.image, CANVAS_WIDTH - CANVAS_HEIGHT, 0); 
 			canvas1.blur(4);
-			canvas1.composite(PLAYER_DATA.image, (CANVAS_WIDTH - CANVAS_HEIGHT) / 2, 0); 
+			canvas1.composite(PLAYER_DATA.image, 0, 0);
 		}
 	}
 	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
-		let length = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
+		let playtime = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
-		length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / length);
+		let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
 		canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
 		length -= CANVAS_HEIGHT;
 		canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
+		loadWhiteFont()
+				.then((whiteFont) => {
+					let seconds = Math.floor(playtime % 60.0).toString();
+					if (seconds.length < 2) seconds = "0" + seconds;
+					let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
+					let textWidth = Jimp.measureText(whiteFont, totalTime);
+					canvas1.print(whiteFont, CANVAS_WIDTH-textWidth-5, 10, totalTime);
+				});
 	}
 	if (!onlyPosition) {
 		if (HUDvisible) canvas1.composite(canvasHUD, 0, 0); 
 	}
-	playerShowCounter = 0;
 	sendUIUpdates();
 }
 
 function sendUIUpdates() {
-	if (!ready)
-		return;
+	if (!ready) return;
 	ready = false;
 	let different = false;
 	//scan image and determine changes
@@ -490,19 +506,19 @@ function checkPlayerInfo() {
 			current = last_current;
 		} else {
 			if (playerShowCounter < 6) { /*do nothing*/ }
-			else if (playerShowCounter > 59) 
+			else if (playerShowCounter > 33) 
 				playerShowCounter = 0
-			else if (playerShowCounter < 23) {
+			else if (playerShowCounter < 15) {
 				if (prev_title_info !== PLAYER_DATA.title || prev_info !== PLAYER_DATA.title) {
 					if (PLAYER_DATA.title) serialSendStatus(PLAYER_DATA.title);
 					prev_title_info = PLAYER_DATA.title; prev_info = PLAYER_DATA.title;
 				}
-			} else if (playerShowCounter < 41) {
+			} else if (playerShowCounter < 24) {
 				if (prev_artist_info !== PLAYER_DATA.artist || prev_info !== PLAYER_DATA.artist) {
 					if (PLAYER_DATA.artist) serialSendStatus(PLAYER_DATA.artist);
 					prev_artist_info = PLAYER_DATA.artist; prev_info = PLAYER_DATA.artist;
 				}
-			} else if (playerShowCounter < 59) {
+			} else if (playerShowCounter < 33) {
 				if (prev_album_info !== PLAYER_DATA.album || prev_info !== PLAYER_DATA.album) {
 					if (PLAYER_DATA.album) serialSendStatus(PLAYER_DATA.album);
 					prev_album_info = PLAYER_DATA.album; prev_info = PLAYER_DATA.album;
@@ -511,7 +527,6 @@ function checkPlayerInfo() {
 			playerShowCounter++;
 		}
 	}
-	playerShowCounter++;
 }
 setInterval(checkPlayerInfo, 1000);
 
@@ -527,6 +542,7 @@ function serialPortOpen() {
 	console.log('port open. Data rate: ' + serial0.baudRate);
 	unblock()
 		.then(powerOnConfirm())
+		.then(hidePlayer())
 		.then(() => checkStatusses());
 }
 
@@ -559,7 +575,7 @@ function processReceiveBuffer() {
 		.then(shutdownShairport())
 		.then(startupPianobar())
 		.then(unblock())
-		.then(serialSendStatus("Pandora ready."));
+		.then(() => { serialSendStatus("Pandora starting..."); readPianobarInfo();});
 	  break;
 	case PPP_T_READY:
 		ready = true;
@@ -567,7 +583,6 @@ function processReceiveBuffer() {
 		break;
 	case PPP_T_CLICKED:
 		console.log("Clicked.");
-		
 		if (!HUDvisible) {
 			console.log("Show HUD");
 			updateHUD()
@@ -577,30 +592,42 @@ function processReceiveBuffer() {
 						updatePlayerUI();
 					});
 		} else {
-			if (menuSelected == 0) {
-				const fw = fs.openSync(PIANOBAR_CTL, 'w') // blocked until a reader attached
-				fs.writeSync(fw, 'n')
-				fs.closeSync(fw);
-				serialSendStatus("* next");
-				HUDvisible = false;
-			} else if (menuSelected == 1) {
-				console.log("Hide HUD.");
-				HUDvisible = false;
+			if (pianobarActive) {
+				if (menuSelected == 0) {
+					const fw = fs.openSync(PIANOBAR_CTL, 'w') // blocked until a reader attached
+					fs.writeSync(fw, 'n')
+					fs.closeSync(fw);
+					serialSendStatus("* next");
+					HUDvisible = false;
+				} else if (menuSelected == 1) {
+					console.log("Hide HUD.");
+					HUDvisible = false;
+				} else if (menuSelected == 2) {
+					HUDvisible = false;
+					shutdownPianobar()
+						.then(hidePlayer())
+						.then(startupShairport())
+						.then(() => console.log("Pianobar stopped."));
+				}
 			}
-			updatePlayerUI();
+			if (HUDvisible) updatePlayerUI();
 		}
 		break;
 	case PPP_T_TURNED_UP:
 		console.log("Turned Up.");
 		if (HUDvisible) {
-			menuSelected++; if (menuSelected == 2) menuSelected = 0;
+			let count=0;
+			if (pianobarActive) count = 3;
+			menuSelected++; if (menuSelected == count) menuSelected = 0;
 			updateHUD().then(() => updatePlayerUI());
 		}
 		break;
 	case PPP_T_TURNED_DOWN:
 		console.log("Turned Down.");
 		if (HUDvisible) {
-			menuSelected--; if (menuSelected == -1) menuSelected = 1;
+			let count=0;
+			if (pianobarActive) count = 3;
+			menuSelected--; if (menuSelected == -1) menuSelected = count-1;
 			updateHUD().then(() => updatePlayerUI());
 		}
 		break;
