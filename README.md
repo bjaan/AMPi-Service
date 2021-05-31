@@ -77,8 +77,6 @@ The software will run under the context of the _pi_ user and therefore the home-
 * move back to the home folder `cd /home/pi`
 * to start: `node AMPi-Node/app.js`
 
-The ability to start as a autostart service is not ready yet, for now start it manually after booting the Raspberry Pi .
-
 # Configuration changes
 
 * Raspberry Pi boot configuration in `/boot/config.txt`
@@ -125,6 +123,24 @@ pi@ampi:~ $ aplay -l
 card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplus], device 0: HiFiBerry DAC+ HiFi pcm512x-hifi-0 [HiFiBerry DAC+ HiFi pcm512x-hifi-0]
   Subdevices: 0/1
   Subdevice #0: subdevice #0
+```
+
+* AMPi service file `/etc/systemd/system/ampi.service` to set-up a service for AMPi, called ampi - and installed the service following these [instructions](https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/)
+```ini
+[Unit]
+Description=ampi
+After=network.target
+
+[Service]
+ExecStart=node AMPi-Node/app.js
+WorkingDirectory=/home/pi
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 * Shairport Sync configuration changes in `/etc/shairport-sync.conf`:
