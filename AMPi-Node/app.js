@@ -26,6 +26,7 @@ let receiveSizeLeft = 0;
 
 // Configuration
 
+const HOME = '/home/pi/AMPi-Node';
 const SHAIRPORT_METADATA = '/tmp/shairport-sync-metadata';
 const PIANOBAR_NOWPLAYING = '/home/pi/.config/pianobar/nowplaying';
 const PIANOBAR_CTL = '/home/pi/.config/pianobar/ctl';
@@ -213,8 +214,13 @@ function readShairPortMeta(data) {
 	PLAYER_DATA.songStartTime = new Date();
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
 	PLAYER_DATA.image = null;
+	PLAYER_DATA.year = (shairPortNowPlaying.hasOwnProperty('asyr') ? shairPortNowPlaying.asyr : null);
+	PLAYER_DATA.bitrate = (shairPortNowPlaying.hasOwnProperty('asbr') ? parseInt(shairPortNowPlaying.asbr) : null);
+	PLAYER_DATA.samplerate = (shairPortNowPlaying.hasOwnProperty('assr') ? parseInt(shairPortNowPlaying.assr) / 1000 : null);
+	PLAYER_DATA.category = (shairPortNowPlaying.hasOwnProperty('asgn') ? shairPortNowPlaying.asgn : null);
 	playerShowCounter = 0;
 	updatePlayerUI(false, false);
+	//console.log(data);
 }
 
 function readShairPortPict(data) {
@@ -247,6 +253,7 @@ function startupShairport() {
 		else {
 			exec("sudo service shairport-sync start", (error, stdout, stderr) => {
 				console.log('Airplay started.');
+				shairportChecked = false;
 				return checkShairport();
 			});
 		}
@@ -276,6 +283,7 @@ function startupPianobar() {
 			console.log('Starting pianobar.');
 			exec("sudo service pianobar start", (error, stdout, stderr) => {
 				console.log('Pianobar started.');
+				pianobarChecked = false;
 				return checkPianobar();
 			});
 		}
@@ -293,6 +301,10 @@ function readPianobarInfo() {
 	PLAYER_DATA.album = pianobarNowPlaying.album;
 	PLAYER_DATA.songStartTime = fs.statSync(PIANOBAR_NOWPLAYING).mtime;
 	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
+	PLAYER_DATA.year = null;
+	PLAYER_DATA.bitrate = null;
+	PLAYER_DATA.samplerate = null;
+	PLAYER_DATA.category = pianobarNowPlaying.stationName;
 	playerShowCounter = 0;
 	//console.log(pianobarNowPlaying);
 	if (pianobarNowPlaying.coverArt) {
@@ -398,11 +410,30 @@ function updateHUD() {
 				if (shairportActive) {
 					canvasHUD.print(whiteFont, 10, 10, "Skip" + (menuSelected == 0 ? " <" : ""));
 					canvasHUD.print(whiteFont, 10, 23, "Close" + (menuSelected == 1 ? " <" : ""));
-					canvasHUD.print(whiteFont, 10, 36, "Stop" + (menuSelected == 2 ? " <" : ""));
+					canvasHUD.print(whiteFont, 10, 36, "Hide" + (menuSelected == 2 ? " <" : ""));
 				}
 				console.log("HUD updated.");
 				resolve();
 			});
+	});
+}
+
+function UIprintRightAndBackground(text, font, textTop, bgR, bgG, bgB) {
+	let textWidth = Jimp.measureText(font, text);
+	let textHeight = Jimp.measureTextHeight(font, text);
+	let textLeft = CANVAS_WIDTH-textWidth;
+	canvas1.scan(textLeft-1, textTop-1, textWidth+2, textHeight+2, function(x, y, idx) { this.bitmap.data[idx] = bgR; this.bitmap.data[idx+1] = bgG; this.bitmap.data[idx+2] = bgB; });
+	canvas1.print(font, textLeft, textTop, text);
+	return { width : textWidth, height : textHeight }
+}
+
+function UIprintImage(path, x, y) {
+	return new Promise((resolve) => {
+		Jimp.read(path, (err, lenna) => {
+		  if (err) throw err;
+		  canvas1.composite(lenna, x, y); 
+		  resolve();
+		});
 	});
 }
 
@@ -419,22 +450,46 @@ function updatePlayerUI(onlyPosition, onlyHUD) {
 		let playtime = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
+		//render red bars for position
 		canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
 		length -= CANVAS_HEIGHT;
 		canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
-		loadWhiteFont()
-			.then((whiteFont) => {
-				let seconds = Math.floor(playtime % 60.0).toString();
-				if (seconds.length < 2) seconds = "0" + seconds;
-				let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
-				let textWidth = Jimp.measureText(whiteFont, totalTime);
-				canvas1.print(whiteFont, CANVAS_WIDTH-textWidth-5, 10, totalTime);
-			});
+		//render song time & year & bitrate & samplerate & category
+		if (!onlyPosition) { //print also
+			loadWhiteFont()
+				.then((whiteFont) => {
+					let seconds = Math.floor(playtime % 60.0).toString();
+					if (seconds.length < 2) seconds = "0" + seconds;
+					let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
+					let textHeightTop = 0;
+					textHeightTop += UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+					if (PLAYER_DATA.year) textHeightTop += UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+					if (PLAYER_DATA.bitrate && PLAYER_DATA.bitrate > 0) {
+						textHeightTop += UIprintRightAndBackground(PLAYER_DATA.bitrate.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+						UIprintImage(HOME+"/kbps.png", CANVAS_WIDTH-27/*icon width-3*/, textHeightTop-8/*icon height-6*/);
+						textHeightTop += 6;
+					}
+					if (PLAYER_DATA.samplerate && PLAYER_DATA.samplerate > 0) {
+						textHeightTop += UIprintRightAndBackground(PLAYER_DATA.samplerate.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+						UIprintImage(HOME+"/khz.png", CANVAS_WIDTH-22/*icon width-1*/, textHeightTop-5/*icon height-6*/);
+						textHeightTop += 6;
+					}
+					if (PLAYER_DATA.category) /* textHeightTop += */ UIprintRightAndBackground(PLAYER_DATA.category, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+				});
+		}
 	}
 	if (!onlyPosition || onlyHUD) {
 		if (HUDvisible) canvas1.composite(canvasHUD, 0, 0); 
 	}
 	sendUIUpdates();
+}
+
+let readyTimeout = null;
+
+function forceReadyUI() {
+	console.log('UI update forced (time-out).');
+	ready = true; //force ready
+	sendUIUpdates(); //try again
 }
 
 function sendUIUpdates() {
@@ -497,6 +552,7 @@ function sendUIUpdates() {
 		}
 	}
 	serialSend(blockbuffer, () => { });
+	readyTimeout = setTimeout(forceReadyUI, 10000); //in case confirmation via ready message does not come in 10 seconds
 }
 
 let last_current = -1;
@@ -584,6 +640,7 @@ function processReceiveBuffer() {
 	  break;
 	case PPP_T_READY:
 		ready = true;
+		if (readyTimeout) { clearTimeout(readyTimeout); readyTimeout = null; /* arduino confirmed it was ready */ }
 		sendUIUpdates();
 		break;
 	case PPP_T_CLICKED:
@@ -597,6 +654,7 @@ function processReceiveBuffer() {
 						updatePlayerUI(false, true);
 					});
 		} else {
+			let exiting = false;
 			if (pianobarActive) {
 				if (menuSelected == 0) {
 					const fw = fs.openSync(PIANOBAR_CTL, 'w') // blocked until a reader attached
@@ -608,7 +666,7 @@ function processReceiveBuffer() {
 					console.log("Hide HUD.");
 					HUDvisible = false;
 				} else if (menuSelected == 2) {
-					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null;
+					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null; exiting = true;
 					shutdownPianobar()
 						.then(hidePlayer())
 						.then(startupShairport())
@@ -623,13 +681,12 @@ function processReceiveBuffer() {
 					console.log("Hide HUD.");
 					HUDvisible = false;
 				} else if (menuSelected == 2) {
-					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null;
-					shutdownShairport()
-						.then(hidePlayer())
-						.then(() => console.log("Airplay stopped."));
+					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null; exiting = true;
+					hidePlayer()
+						.then(() => console.log("Player hidden.")); //hidden until next song
 				}
 			}
-			if (HUDvisible) updatePlayerUI(false, true);
+			if (!exiting) updatePlayerUI(false, false /*as hiding needs complete rerender*/);
 		}
 		break;
 	case PPP_T_TURNED_UP:
@@ -638,8 +695,8 @@ function processReceiveBuffer() {
 			let count=0;
 			if (pianobarActive) count = 3;
 			if (shairportActive) count = 3;
-			menuSelected++; if (menuSelected == count) menuSelected = 0;
-			updateHUD().then(() => updatePlayerUI());
+			menuSelected--; if (menuSelected == -1) menuSelected = count-1;
+			updateHUD().then(() => updatePlayerUI(false, true /*as hiding needs rerender of HUD only*/));
 		}
 		break;
 	case PPP_T_TURNED_DOWN:
@@ -648,8 +705,8 @@ function processReceiveBuffer() {
 			let count=0;
 			if (pianobarActive) count = 3;
 			if (shairportActive) count = 3;
-			menuSelected--; if (menuSelected == -1) menuSelected = count-1;
-			updateHUD().then(() => updatePlayerUI());
+			menuSelected++; if (menuSelected == count) menuSelected = 0;
+			updateHUD().then(() => updatePlayerUI(false, true /*as hiding needs rerender of HUD only*/));
 		}
 		break;
 	default:

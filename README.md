@@ -10,6 +10,10 @@ The Node.js app lives in the **AMPi-Node** folder.
 
 For the code running on the Arduino Nano, go to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
+Front panel design (WIP):
+
+![Panel Design (WIP)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-panel.jpg)
+
 # AMPi features
 
 * Mini size 250mm x 190mm x 80mm. Maxi sound
