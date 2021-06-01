@@ -444,25 +444,32 @@ function updatePlayerUI(onlyPosition, onlyHUD) {
 			canvas1.composite(PLAYER_DATA.image, CANVAS_WIDTH - CANVAS_HEIGHT, 0); 
 			canvas1.blur(4);
 			canvas1.composite(PLAYER_DATA.image, 0, 0);
+		} else {
+			if (shairportActive) 
+				UIprintImage(HOME+"/airplay.png", (CANVAS_WIDTH/2)-25/*icon width/2*/, (CANVAS_HEIGHT/2)-25/*icon height/2*/);
 		}
 	}
 	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
 		let playtime = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
-		//render red bars for position
-		canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
-		length -= CANVAS_HEIGHT;
-		canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
+		if (playtime > 0) {
+			//render red bars for position
+			canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
+			length -= CANVAS_HEIGHT;
+			canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
+		}
 		//render song time & year & bitrate & samplerate & category
 		if (!onlyPosition) { //print also
 			loadWhiteFont()
 				.then((whiteFont) => {
-					let seconds = Math.floor(playtime % 60.0).toString();
-					if (seconds.length < 2) seconds = "0" + seconds;
-					let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
 					let textHeightTop = 0;
-					textHeightTop += UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+					if (playtime > 0) {
+						let seconds = Math.floor(playtime % 60.0).toString();
+						if (seconds.length < 2) seconds = "0" + seconds;
+						let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
+						textHeightTop += UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
+					}
 					if (PLAYER_DATA.year) textHeightTop += UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
 					if (PLAYER_DATA.bitrate && PLAYER_DATA.bitrate > 0) {
 						textHeightTop += UIprintRightAndBackground(PLAYER_DATA.bitrate.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
@@ -571,18 +578,18 @@ function checkPlayerInfo() {
 				playerShowCounter = 0
 			else if (playerShowCounter < 15) {
 				if (prev_title_info !== PLAYER_DATA.title || prev_info !== PLAYER_DATA.title) {
-					if (PLAYER_DATA.title) serialSendStatus(PLAYER_DATA.title);
-					prev_title_info = PLAYER_DATA.title; prev_info = PLAYER_DATA.title;
+					if (PLAYER_DATA.title && PLAYER_DATA.title.length > 0) { serialSendStatus(PLAYER_DATA.title); prev_info = PLAYER_DATA.title; }
+					prev_title_info = PLAYER_DATA.title;
 				}
 			} else if (playerShowCounter < 24) {
 				if (prev_artist_info !== PLAYER_DATA.artist || prev_info !== PLAYER_DATA.artist) {
-					if (PLAYER_DATA.artist) serialSendStatus(PLAYER_DATA.artist);
-					prev_artist_info = PLAYER_DATA.artist; prev_info = PLAYER_DATA.artist;
+					if (PLAYER_DATA.artist && PLAYER_DATA.artist.length > 0) { serialSendStatus(PLAYER_DATA.artist);  prev_info = PLAYER_DATA.artist; }
+					prev_artist_info = PLAYER_DATA.artist;
 				}
 			} else if (playerShowCounter < 33) {
 				if (prev_album_info !== PLAYER_DATA.album || prev_info !== PLAYER_DATA.album) {
-					if (PLAYER_DATA.album) serialSendStatus(PLAYER_DATA.album);
-					prev_album_info = PLAYER_DATA.album; prev_info = PLAYER_DATA.album;
+					if (PLAYER_DATA.album && PLAYER_DATA.album.length > 0) { serialSendStatus(PLAYER_DATA.album); prev_info = PLAYER_DATA.album; }
+					prev_album_info = PLAYER_DATA.album;
 				}
 			}
 			playerShowCounter++;
