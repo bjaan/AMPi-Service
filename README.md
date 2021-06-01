@@ -37,19 +37,27 @@ Contains a Raspberry Pi Model 3 and an Arduino Nano
 
 ![Front Side (first prototype)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-top.jpg)
 
-When playing iTunes over AirPlay or when using Pianobar to play Pandora Music, AMPi is displaying the current song and artwork.
+When playing iTunes over AirPlay and when using Pianobar to play Pandora Music, AMPi is displaying the current song and artwork.
 
-|Main menu | Playback screen | Playback screen with no cover art |
-|--------------|--------------|--------------|
-| ![main menu](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/mainmenu.jpg) | ![Playing over AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/playing.png) | ![Playing over AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade-playing.png) |
+|Main menu | Playback screen with cover art |
+|--------------|--------------|
+| ![main menu](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/mainmenu.jpg) | ![Playing over AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/playing.png)
 
 AirPlay connection to AMPi in iTunes (Windows 10):
 
 ![AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/itunes.png)
 
-AirPlay connection to AMPi in TuneBlade (Windows 10)
+AirPlay connection to AMPi in TuneBlade (Windows 10):
 
-![AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade.png)
+| AirPlay connection | Playback screen with no cover art |
+|--------------|--------------|
+| ![AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade.png) | ![Playing over AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade-playing.png) |
+
+Self-contained playback of Pandora Music:
+
+| Playback screen with cover art |
+|--------------|
+| ![Pandora](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/pandora.jpg) |
 
 # TODO / WIP
 
