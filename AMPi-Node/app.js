@@ -124,6 +124,7 @@ function checkShairport() {
 				if (!shairportChecked || !shairportOpen /*when not connected*/ && !shairportActive /*only once*/) {
 					console.log("shairport up");
 					serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Airplay WHITE sent'));
+					HUDvisible = false;
 				}
 				shairportActive = true;
 			}
@@ -151,6 +152,7 @@ function checkPianobar() {
 					serialSend(Buffer.from('<N\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Pandora WHITE sent'));
 					readPianobarInfo();
 					fs.watchFile(PIANOBAR_NOWPLAYING, pianobarNowPlayingListener);
+					HUDvisible = false;
 				}
 				pianobarActive = true;
 			}
@@ -418,13 +420,13 @@ function updateHUD() {
 	});
 }
 
-function UIprintRightAndBackground(text, font, textTop, bgR, bgG, bgB) {
+async function UIprintRightAndBackground(text, font, textTop, bg, bgR, bgG, bgB) { //print text right when larger than screen then force left & optional background
+	let textHeight = Jimp.measureTextHeight(font, text, CANVAS_WIDTH);
 	let textWidth = Jimp.measureText(font, text);
-	let textHeight = Jimp.measureTextHeight(font, text);
-	let textLeft = CANVAS_WIDTH-textWidth;
-	canvas1.scan(textLeft-1, textTop-1, textWidth+2, textHeight+2, function(x, y, idx) { this.bitmap.data[idx] = bgR; this.bitmap.data[idx+1] = bgG; this.bitmap.data[idx+2] = bgB; });
-	canvas1.print(font, textLeft, textTop, text);
-	return { width : textWidth, height : textHeight }
+	let textLeft = Math.max(CANVAS_WIDTH-textWidth, 0);
+	if (bg) await canvas1.scan(textLeft-1, textTop-1, textWidth+2, textHeight+2, function(x, y, idx) { this.bitmap.data[idx] = bgR; this.bitmap.data[idx+1] = bgG; this.bitmap.data[idx+2] = bgB; });
+	await canvas1.print(font, textLeft, textTop, text);
+	return textHeight;
 }
 
 function UIprintImage(path, x, y) {
@@ -437,57 +439,52 @@ function UIprintImage(path, x, y) {
 	});
 }
 
-function updatePlayerUI(onlyPosition, onlyHUD) {
-	if (!onlyPosition && !onlyHUD) {
-		clearCanvas(canvas1, 0, 0, 0);
-		if (PLAYER_DATA.image) {
-			canvas1.composite(PLAYER_DATA.image, CANVAS_WIDTH - CANVAS_HEIGHT, 0); 
-			canvas1.blur(4);
-			canvas1.composite(PLAYER_DATA.image, 0, 0);
-		} else {
-			if (shairportActive) 
-				UIprintImage(HOME+"/airplay.png", (CANVAS_WIDTH/2)-25/*icon width/2*/, (CANVAS_HEIGHT/2)-25/*icon height/2*/);
-		}
+async function UIrenderInfo(playtime) { //render song time & year & bitrate & samplerate & category
+	let whiteFont = await loadWhiteFont();
+	let textHeightTop = 0;
+	if (playtime > 0) {
+		let seconds = Math.floor(playtime % 60.0).toString();
+	if (seconds.length < 2) seconds = "0" + seconds;
+		let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
+		textHeightTop += await UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, false);
+		textHeightTop += 4;
 	}
+	if (PLAYER_DATA.year) {
+		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, false);
+		textHeightTop += 4;
+	}
+	if (PLAYER_DATA.bitrate && PLAYER_DATA.bitrate > 0) {
+		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.bitrate.toString(), whiteFont, textHeightTop, false);
+		await UIprintImage(HOME+"/kbps.png", CANVAS_WIDTH-27/*icon width-3*/, textHeightTop-6/*icon height-8*/);
+		textHeightTop += 4;
+	}
+	if (PLAYER_DATA.samplerate && PLAYER_DATA.samplerate > 0) {
+		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.samplerate.toString(), whiteFont, textHeightTop, false);
+		await UIprintImage(HOME+"/khz.png", CANVAS_WIDTH-22/*icon width-1*/, textHeightTop-5/*icon height-6*/);
+	}
+	if (PLAYER_DATA.category) await UIprintRightAndBackground(PLAYER_DATA.category, whiteFont, CANVAS_HEIGHT-19, true, 0, 0, 0);
+}
+
+async function UIrenderPosition(playtime) { //render red bars for position
+	let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
+	let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
+	await canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
+	length -= CANVAS_HEIGHT;
+	await canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
+}
+
+async function updatePlayerUI(onlyPosition, onlyHUD) {
+	if (!onlyPosition && !onlyHUD) await clearCanvas(canvas1, 0, 0, 0);
 	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
+		if (!onlyPosition && !onlyHUD) {
+			if (PLAYER_DATA.image) await canvas1.composite(PLAYER_DATA.image, 0, 0);
+			else if (shairportActive) await UIprintImage(HOME+"/airplay.png", (CANVAS_WIDTH/2)-25/*icon width/2*/, (CANVAS_HEIGHT/2)-25/*icon height/2*/);
+		}
 		let playtime = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
-		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
-		let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
-		if (playtime > 0) {
-			//render red bars for position
-			canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
-			length -= CANVAS_HEIGHT;
-			canvas1.scan(0, CANVAS_HEIGHT-2, Math.min(length, CANVAS_WIDTH), 2, function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0; this.bitmap.data[idx+2] = 0; });
-		}
-		//render song time & year & bitrate & samplerate & category
-		if (!onlyPosition) { //print also
-			loadWhiteFont()
-				.then((whiteFont) => {
-					let textHeightTop = 0;
-					if (playtime > 0) {
-						let seconds = Math.floor(playtime % 60.0).toString();
-						if (seconds.length < 2) seconds = "0" + seconds;
-						let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
-						textHeightTop += UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
-					}
-					if (PLAYER_DATA.year) textHeightTop += UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
-					if (PLAYER_DATA.bitrate && PLAYER_DATA.bitrate > 0) {
-						textHeightTop += UIprintRightAndBackground(PLAYER_DATA.bitrate.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
-						UIprintImage(HOME+"/kbps.png", CANVAS_WIDTH-27/*icon width-3*/, textHeightTop-8/*icon height-6*/);
-						textHeightTop += 6;
-					}
-					if (PLAYER_DATA.samplerate && PLAYER_DATA.samplerate > 0) {
-						textHeightTop += UIprintRightAndBackground(PLAYER_DATA.samplerate.toString(), whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
-						UIprintImage(HOME+"/khz.png", CANVAS_WIDTH-22/*icon width-1*/, textHeightTop-5/*icon height-6*/);
-						textHeightTop += 6;
-					}
-					if (PLAYER_DATA.category) /* textHeightTop += */ UIprintRightAndBackground(PLAYER_DATA.category, whiteFont, textHeightTop, /*R*/ 0, /*G*/ 0, /*B*/ 0).height;
-				});
-		}
+		if (playtime > 0) await UIrenderPosition(playtime);
+		if (!onlyPosition) await UIrenderInfo(playtime);
 	}
-	if (!onlyPosition || onlyHUD) {
-		if (HUDvisible) canvas1.composite(canvasHUD, 0, 0); 
-	}
+	if ((!onlyPosition || onlyHUD) && HUDvisible) await canvas1.composite(canvasHUD, 0, 0);
 	sendUIUpdates();
 }
 
