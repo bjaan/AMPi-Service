@@ -47,7 +47,7 @@ AirPlay connection to AMPi in iTunes (Windows 10):
 
 ![AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/itunes.png)
 
-AirPlay connection to AMPi in TuneBlade (Windows 10):
+AirPlay connection to AMPi on iPhone (Windows 10):
 
 | AirPlay connection | Playback screen with cover art (Live) |
 |--------------|--------------|
