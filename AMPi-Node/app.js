@@ -41,7 +41,9 @@ function serialSend(buf, success) {
 }
 
 function serialSendStatus(text, success) {
+	if (!text) text = "";
 	let textBuf = Buffer.from(text.normalize("NFD").replace(/[\u0300-\u036f]/g, ""), 'ascii');
+	if (text.length > 95 /* MAX_TEXT - 3 plus 2 to avoid edge case */) text = text.str.substring(0,95) + "...";
 	let buf = Buffer.alloc(textBuf.length+4);
 	textBuf.copy(buf, 3);
 	buf[0] = 60; // < 3C
@@ -115,9 +117,8 @@ function checkShairport() {
 				if (!shairportChecked || shairportActive /*only once*/) {
 					console.log("shairport down");
 					serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
-					serialSendStatus("");
 					shairportOpen = false;
-					PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null;
+					PLAYER_DATA.songStartTime = null;
 				}
 				shairportActive = false;
 			} else {
@@ -141,9 +142,8 @@ function checkPianobar() {
 				if (!pianobarChecked || pianobarActive /*only once*/) {
 					console.log("pianobar down");
 					serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
-					serialSendStatus("");
 					fs.unwatchFile(PIANOBAR_NOWPLAYING, pianobarNowPlayingListener);
-					PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null;
+					PLAYER_DATA.songStartTime = null;
 				}
 				pianobarActive = false;
 			} else {
@@ -175,6 +175,7 @@ shairPort.on('pbeg',readShairPortBegin);
 shairPort.on('pend',readShairPortEnd);
 shairPort.on('meta',readShairPortMeta);
 shairPort.on('PICT',readShairPortPict);
+shairPort.on('prsm',readShairPortPauseResume);
 
 function readShairPortBegin(data) {
 	console.log("shairport pbeg " + JSON.stringify(data));
@@ -182,6 +183,7 @@ function readShairPortBegin(data) {
 		shairportOpen = true;
 		console.log('Airplay BLUE sent');
 		clearCanvas(canvas2, 0, 0, 0); //clear canvas as it needs to be rerendered once the metadata comes in
+		PLAYER_DATA.image = null; //clear image
 	});
 	serialSendStatus("> " + data["Client-IP"]);
 }
@@ -190,7 +192,7 @@ function readShairPortEnd(data) {
 	console.log("shairport pend " + JSON.stringify(data));
 	serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => {
 		shairportOpen = false;
-		PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null;
+		PLAYER_DATA.songStartTime = null;
 		console.log('Airplay WHITE sent');
 		serialSend(Buffer.from('<d>', 'ascii'), () => {
 			console.log('Player hide sent');
@@ -208,21 +210,19 @@ function readShairPortMeta(data) {
 	}
 	console.log("shairport meta " /* + JSON.stringify(data)*/);
 	let shairPortNowPlaying = data;
-	console.log(`CURRENT SONG: ${shairPortNowPlaying.asar} - ${shairPortNowPlaying.minm} on ${shairPortNowPlaying.asal}` );
-	let songDuration = parseInt(shairPortNowPlaying.astm);
-	PLAYER_DATA.artist = shairPortNowPlaying.asar;
-	PLAYER_DATA.title = shairPortNowPlaying.minm;
-	PLAYER_DATA.album = shairPortNowPlaying.asal;
-	PLAYER_DATA.songStartTime = new Date();
-	PLAYER_DATA.songEndTime = new Date(PLAYER_DATA.songStartTime.getTime()+songDuration);
-	PLAYER_DATA.image = null;
-	PLAYER_DATA.year = (shairPortNowPlaying.hasOwnProperty('asyr') ? shairPortNowPlaying.asyr : null);
-	PLAYER_DATA.bitrate = (shairPortNowPlaying.hasOwnProperty('asbr') ? parseInt(shairPortNowPlaying.asbr) : null);
-	PLAYER_DATA.samplerate = (shairPortNowPlaying.hasOwnProperty('assr') ? parseInt(shairPortNowPlaying.assr) / 1000 : null);
-	PLAYER_DATA.category = (shairPortNowPlaying.hasOwnProperty('asgn') ? shairPortNowPlaying.asgn : null);
-	playerShowCounter = 0;
-	updatePlayerUI(false, false);
-	//console.log(data);
+	if (shairPortNowPlaying.hasOwnProperty("astm") || PLAYER_DATA.artist != shairPortNowPlaying.asar || PLAYER_DATA.title != shairPortNowPlaying.minm || PLAYER_DATA.album != shairPortNowPlaying.asal) { //when new song or playtime is sent
+		console.log(`CURRENT SONG: ${shairPortNowPlaying.asar} - ${shairPortNowPlaying.minm} on ${shairPortNowPlaying.asal}`);
+		let songDuration = (shairPortNowPlaying.hasOwnProperty("astm") ? parseInt(shairPortNowPlaying.astm) : null);
+		PLAYER_DATA.artist = shairPortNowPlaying.asar; PLAYER_DATA.title = shairPortNowPlaying.minm; PLAYER_DATA.album = shairPortNowPlaying.asal;
+		PLAYER_DATA.songStartTime = new Date();
+		PLAYER_DATA.songEndTime = (songDuration && songDuration > 0 ? new Date(PLAYER_DATA.songStartTime.getTime()+songDuration) : null);
+		PLAYER_DATA.year = (shairPortNowPlaying.hasOwnProperty('asyr') ? shairPortNowPlaying.asyr : null);
+		PLAYER_DATA.bitrate = (shairPortNowPlaying.hasOwnProperty('asbr') ? parseInt(shairPortNowPlaying.asbr) : null);
+		PLAYER_DATA.samplerate = (shairPortNowPlaying.hasOwnProperty('assr') ? parseInt(shairPortNowPlaying.assr) / 1000 : null);
+		PLAYER_DATA.category = (shairPortNowPlaying.hasOwnProperty('asgn') ? shairPortNowPlaying.asgn : null);
+		playerShowCounter = 0;
+		updatePlayerUI(false, false);
+	}
 }
 
 function readShairPortPict(data) {
@@ -235,6 +235,10 @@ function readShairPortPict(data) {
 		});
 }
 
+function readShairPortPauseResume(data) {
+	console.log("shairport prsm "  + JSON.stringify(data));
+}
+
 function shutdownShairport() {
 	return new Promise((resolve, reject) => {
 		if (!shairportActive) 
@@ -242,7 +246,7 @@ function shutdownShairport() {
 		else {
 			exec("sudo service shairport-sync stop", (error, stdout, stderr) => {
 				console.log('Airplay stopped.');
-				return checkShairport();
+				checkShairport().then(() => resolve());
 			});
 		}
 	});
@@ -256,9 +260,20 @@ function startupShairport() {
 			exec("sudo service shairport-sync start", (error, stdout, stderr) => {
 				console.log('Airplay started.');
 				shairportChecked = false;
-				return checkShairport();
+				checkShairport().then(() => resolve());
 			});
 		}
+	});
+}
+
+
+function restartShairport() {
+	return new Promise((resolve, reject) => {
+		exec("sudo service shairport-sync restart", (error, stdout, stderr) => {
+			console.log('Airplay started.');
+			shairportChecked = false;
+			checkShairport().then(() => resolve());
+		});
 	});
 }
 
@@ -271,7 +286,7 @@ function shutdownPianobar() {
 		else {
 			exec("sudo service pianobar stop", (error, stdout, stderr) => {
 				console.log('Pianobar stopped.');
-				return checkPianobar();
+				checkPianobar().then(() => resolve());
 			});
 		}
 	});
@@ -286,7 +301,7 @@ function startupPianobar() {
 			exec("sudo service pianobar start", (error, stdout, stderr) => {
 				console.log('Pianobar started.');
 				pianobarChecked = false;
-				return checkPianobar();
+				checkPianobar().then(() => resolve());
 			});
 		}
 	});
@@ -296,7 +311,7 @@ function readPianobarInfo() {
 	if (!pianobarActive) return; //ignore updates when it not active, e.g. when shutting off
 	if (!fs.existsSync(PIANOBAR_NOWPLAYING)) return;
 	let pianobarNowPlaying = loadIniFile.sync(PIANOBAR_NOWPLAYING);
-	console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}` );
+	console.log(`CURRENT SONG: ${pianobarNowPlaying.artist} - ${pianobarNowPlaying.title} on ${pianobarNowPlaying.album} on ${pianobarNowPlaying.stationName}`);
 	let songDuration = parseInt(pianobarNowPlaying.songDuration)*1000; //convert to milliseconds
 	PLAYER_DATA.artist = pianobarNowPlaying.artist;
 	PLAYER_DATA.title = pianobarNowPlaying.title;
@@ -318,7 +333,6 @@ function readPianobarInfo() {
 			}
 			updatePlayerUI(false, false);
 		});
-		PLAYER_DATA.image
 	} else updatePlayerUI(false, false);
 }
 
@@ -403,7 +417,7 @@ function updateHUD() {
 	return new Promise((resolve, reject) => {
 		loadWhiteFont()
 			.then((whiteFont) => {
-				canvasHUD.scan(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, function(x, y, idx) { this.bitmap.data[idx] = 128; this.bitmap.data[idx+1] = 128;  this.bitmap.data[idx+2] = 128; this.bitmap.data[idx+3] = (x < 10 || x > 65 || y < 10 || y > 58 ? 0 : 255);});
+				canvasHUD.scan(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, function(x, y, idx) { this.bitmap.data[idx] = 128; this.bitmap.data[idx+1] = 128;  this.bitmap.data[idx+2] = 128; this.bitmap.data[idx+3] = (x < 10 || x > 75 || y < 10 || y > 58 ? 0 : 255);});
 				if (pianobarActive) {
 					canvasHUD.print(whiteFont, 10, 10, "Skip" + (menuSelected == 0 ? " <" : ""));
 					canvasHUD.print(whiteFont, 10, 23, "Close" + (menuSelected == 1 ? " <" : ""));
@@ -412,7 +426,7 @@ function updateHUD() {
 				if (shairportActive) {
 					canvasHUD.print(whiteFont, 10, 10, "Skip" + (menuSelected == 0 ? " <" : ""));
 					canvasHUD.print(whiteFont, 10, 23, "Close" + (menuSelected == 1 ? " <" : ""));
-					canvasHUD.print(whiteFont, 10, 36, "Hide" + (menuSelected == 2 ? " <" : ""));
+					canvasHUD.print(whiteFont, 10, 36, "Restart" + (menuSelected == 2 ? " <" : ""));
 				}
 				console.log("HUD updated.");
 				resolve();
@@ -442,13 +456,14 @@ function UIprintImage(path, x, y) {
 async function UIrenderInfo(playtime) { //render song time & year & bitrate & samplerate & category
 	let whiteFont = await loadWhiteFont();
 	let textHeightTop = 0;
+	let totalTime;
 	if (playtime > 0) {
 		let seconds = Math.floor(playtime % 60.0).toString();
-	if (seconds.length < 2) seconds = "0" + seconds;
-		let totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
-		textHeightTop += await UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, false);
-		textHeightTop += 4;
-	}
+		if (seconds.length < 2) seconds = "0" + seconds;
+		totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
+	} else totalTime = "Live"
+	textHeightTop += await UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, false);
+	textHeightTop += 4;
 	if (PLAYER_DATA.year) {
 		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, false);
 		textHeightTop += 4;
@@ -465,7 +480,7 @@ async function UIrenderInfo(playtime) { //render song time & year & bitrate & sa
 	if (PLAYER_DATA.category) await UIprintRightAndBackground(PLAYER_DATA.category, whiteFont, CANVAS_HEIGHT-19, true, 0, 0, 0);
 }
 
-async function UIrenderPosition(playtime) { //render red bars for position
+async function UIrenderPositionbars(playtime) { //render red bars for position
 	let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 	let length = Math.floor(current * (CANVAS_HEIGHT+CANVAS_WIDTH) / playtime);
 	await canvas1.scan(0, 0, 2, Math.min(length, CANVAS_HEIGHT), function(x, y, idx) { this.bitmap.data[idx] = 255; this.bitmap.data[idx+1] = 0;  this.bitmap.data[idx+2] = 0; });
@@ -475,13 +490,13 @@ async function UIrenderPosition(playtime) { //render red bars for position
 
 async function updatePlayerUI(onlyPosition, onlyHUD) {
 	if (!onlyPosition && !onlyHUD) await clearCanvas(canvas1, 0, 0, 0);
-	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
+	if (PLAYER_DATA.songStartTime) {
 		if (!onlyPosition && !onlyHUD) {
 			if (PLAYER_DATA.image) await canvas1.composite(PLAYER_DATA.image, 0, 0);
 			else if (shairportActive) await UIprintImage(HOME+"/airplay.png", (CANVAS_WIDTH/2)-25/*icon width/2*/, (CANVAS_HEIGHT/2)-25/*icon height/2*/);
 		}
-		let playtime = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
-		if (playtime > 0) await UIrenderPosition(playtime);
+		let playtime = (PLAYER_DATA.songEndTime ? Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000) : 0 /*inifinite / live*/);
+		if (playtime > 0) await UIrenderPositionbars(playtime);
 		if (!onlyPosition) await UIrenderInfo(playtime);
 	}
 	if ((!onlyPosition || onlyHUD) && HUDvisible) await canvas1.composite(canvasHUD, 0, 0);
@@ -534,7 +549,7 @@ function sendUIUpdates() {
 	}
 	if (!different) {
 		ready = true;
-		console.log("UI updated.");
+		/* console.log("UI updated.");*/
 		return;
 	}
 	//send one block
@@ -563,8 +578,8 @@ let last_current = -1;
 let prev_info = null; let prev_artist_info = null; let prev_title_info = null; let prev_album_info = null;
 
 function checkPlayerInfo() {
-	if (PLAYER_DATA.songStartTime && PLAYER_DATA.songEndTime) {
-		let length = Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
+	if (PLAYER_DATA.songStartTime) {
+		let length = (PLAYER_DATA.songEndTime ? Math.floor((PLAYER_DATA.songEndTime.getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000) : 0);
 		let current = Math.floor((new Date().getTime() - PLAYER_DATA.songStartTime.getTime()) / 1000);
 		if (current != last_current && current > 5 && current % 5 == 0) { //after 5 secs every 5 sec
 			updatePlayerUI(true, false);
@@ -670,7 +685,7 @@ function processReceiveBuffer() {
 					console.log("Hide HUD.");
 					HUDvisible = false;
 				} else if (menuSelected == 2) {
-					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null; exiting = true;
+					HUDvisible = false; PLAYER_DATA.songStartTime = null; exiting = true;
 					shutdownPianobar()
 						.then(hidePlayer())
 						.then(startupShairport())
@@ -685,9 +700,10 @@ function processReceiveBuffer() {
 					console.log("Hide HUD.");
 					HUDvisible = false;
 				} else if (menuSelected == 2) {
-					HUDvisible = false; PLAYER_DATA.songStartTime = null; PLAYER_DATA.songEndTime = null; exiting = true;
+					HUDvisible = false; PLAYER_DATA.songStartTime = null; exiting = true;
 					hidePlayer()
-						.then(() => console.log("Player hidden.")); //hidden until next song
+						.then(restartShairport())
+						.then(() => console.log("Shairport restarted.")); //hidden until we connect again
 				}
 			}
 			if (!exiting) updatePlayerUI(false, false /*as hiding needs complete rerender*/);

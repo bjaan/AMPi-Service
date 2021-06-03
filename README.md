@@ -18,7 +18,7 @@ Front panel design (WIP):
 
 * Mini size 250mm x 190mm x 80mm. Maxi sound
 * 2 channels x 100W (Stereo) Class D Audio Amplifier
-* Built-in internet audio streaming device with high-quality Digital-to-Analog Converter (DAC), e.g. FLAC 24-bits 192khz
+* Built-in internet audio streaming device with high-quality Digital-to-Analog Converter (DAC), e.g. 192KHz/24-bit FLAC
 * Built-in pre-amplifier
 * Input audio transformers functioning as a ground loop isolator. This allows for a full galvanic separation between external audio equipment and the DAC and AMPi
 * Computer-controlled interface that controls the screen, manages the power of and the services running on the built-in audio streaming device
