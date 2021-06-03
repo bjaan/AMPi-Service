@@ -49,9 +49,16 @@ AirPlay connection to AMPi in iTunes (Windows 10):
 
 AirPlay connection to AMPi in TuneBlade (Windows 10):
 
+| AirPlay connection | Playback screen with cover art (Live) |
+|--------------|--------------|
+| ![AirPlay on iPhone](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/iphone.jpg) | ![Playing over AirPlay on iPhone - live](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/livemusic.jpg) |
+
+AirPlay connection to AMPi in TuneBlade (Windows 10):
+
 | AirPlay connection | Playback screen with no cover art |
 |--------------|--------------|
 | ![AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade.png) | ![Playing over AirPlay in TuneBlade](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/tuneblade-playing.png) |
+
 
 Self-contained playback of Pandora Music:
 
@@ -73,7 +80,7 @@ At the moment the service software is written using Node.js, future plans are to
 
 # Required software
 
-* Raspbian GNU/Linux 10 (buster) - I installed a new Raspberry Pi image with the `ampi` hostname and connected it to the Internet
+* Raspbian GNU/Linux 10 (buster) - I installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
 * Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/)
 * [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
