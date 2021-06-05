@@ -10,9 +10,10 @@ The Node.js app lives in the **AMPi-Node** folder.
 
 For the code running on the Arduino Nano, go to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
 
-Front panel design (WIP):
+Front and back panel design (WIP):
 
 ![Panel Design (WIP)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-panel.jpg)
+![PBackanel Design (WIP)](https://raw.githubusercontent.com/bjaan/AMPi-Display-Interface/main/firstprototype-backpanel.jpg)
 
 # AMPi features
 
