@@ -174,14 +174,14 @@ User=pi
 WantedBy=multi-user.target
 ```
 
-* Shairport Sync configuration changes in `/etc/shairport-sync.conf`:
+* Shairport Sync configuration changes the metadata section in `/etc/shairport-sync.conf` to enable shairport-sync metadata sharing:
 ```sh
 metadata =
 {
-        enabled = "yes"; // set this to yes to get Shairport Sync to solicit metadata from the source and to pass it on via a pipe
-        include_cover_art = "yes"; // set to "yes" to get Shairport Sync to solicit cover art from the source and pass it via the pipe. You must also set "ena$
-        cover_art_cache_directory = "/tmp/shairport-sync/.cache/coverart"; // artwork will be  stored in this directory if the dbus or MPRIS interfaces are en$
+        enabled = "yes";
+        include_cover_art = "yes";
+        cover_art_cache_directory = "/tmp/shairport-sync/.cache/coverart";
         pipe_name = "/tmp/shairport-sync-metadata";
-        pipe_timeout = 5000; // wait for this number of milliseconds for a blocked pipe to unblock before giving up
+        pipe_timeout = 15000;
 };
 ```

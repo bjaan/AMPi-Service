@@ -119,6 +119,7 @@ function checkShairport() {
 					serialSend(Buffer.from('<R\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Airplay RED sent'));
 					shairportOpen = false;
 					PLAYER_DATA.songStartTime = null;
+					if (shairPort) { shairPort.removeAllListeners(); shairPort = null; }
 				}
 				shairportActive = false;
 			} else {
@@ -126,6 +127,8 @@ function checkShairport() {
 					console.log("shairport up");
 					serialSend(Buffer.from('<R\x03\xFF\xFF\xFF>', 'ascii'), () => console.log('Airplay WHITE sent'));
 					HUDvisible = false;
+					if (shairPort) { shairPort.removeAllListeners(); shairPort = null; }
+					setTimeout(function(){ shairPort = createShairportReader(); }, 1000); //after one second activate event listener for meta data / connection
 				}
 				shairportActive = true;
 			}
@@ -143,7 +146,7 @@ function checkPianobar() {
 					console.log("pianobar down");
 					serialSend(Buffer.from('<N\x03\xFF\x8C\x1A>', 'ascii'), () => console.log('Pandora RED sent'));
 					fs.unwatchFile(PIANOBAR_NOWPLAYING, pianobarNowPlayingListener);
-					PLAYER_DATA.songStartTime = null;
+					PLAYER_DATA.songStartTime = null; PLAYER_DATA.image = null;
 				}
 				pianobarActive = false;
 			} else {
@@ -170,12 +173,23 @@ setInterval(checkStatusses, 5000);
 
 // Shairport Sync Management
 
-let shairPort = new ShairportReader({ path: SHAIRPORT_METADATA });
-shairPort.on('pbeg',readShairPortBegin);
-shairPort.on('pend',readShairPortEnd);
-shairPort.on('meta',readShairPortMeta);
-shairPort.on('PICT',readShairPortPict);
-shairPort.on('prsm',readShairPortPauseResume);
+let shairPort = null;
+
+function createShairportReader() {
+	let spr = new ShairportReader({ path: SHAIRPORT_METADATA });
+	spr.on('error',readShairPortError);
+	spr.on('pbeg',readShairPortBegin);
+	spr.on('pend',readShairPortEnd);
+	spr.on('meta',readShairPortMeta);
+	spr.on('PICT',readShairPortPict);
+	spr.on('prsm',readShairPortPauseResume);
+	console.log("shairport listening");
+	return spr;
+}
+
+function readShairPortError(data) {
+	console.log("shairport error "  + JSON.stringify(data));
+}
 
 function readShairPortBegin(data) {
 	console.log("shairport pbeg " + JSON.stringify(data));
@@ -232,6 +246,11 @@ function readShairPortPict(data) {
 			 image.scaleToFit(CANVAS_HEIGHT, Jimp.AUTO, Jimp.RESIZE_BEZIER)
 			 PLAYER_DATA.image = image;
 			 updatePlayerUI(false, false);
+		})
+		.catch(function (err) {
+			console.error(err); //error reading cover art image
+			PLAYER_DATA.image = null;
+			updatePlayerUI(false, false);
 		});
 }
 
@@ -270,8 +289,9 @@ function startupShairport() {
 function restartShairport() {
 	return new Promise((resolve, reject) => {
 		exec("sudo service shairport-sync restart", (error, stdout, stderr) => {
-			console.log('Airplay started.');
+			console.log('Airplay restarted.');
 			shairportChecked = false;
+			serialSendStatus("");
 			checkShairport().then(() => resolve());
 		});
 	});
@@ -364,6 +384,8 @@ blockbuffer[1 /*command*/] = 68 /*D*/; blockbuffer[2 /*payloadsize*/] = blockdat
 blockbuffer[3 /*x*/] = 0;
 blockbuffer[4 /*y*/] = 0;
 
+let pixelToCheck = 0;
+
 function loadWhiteFont() { 
 	return Jimp.loadFont(Jimp.FONT_SANS_16_WHITE);
 }
@@ -382,22 +404,6 @@ function convertRGB888toRGB565(r, g, b)
 	RGB565 = RGB565 | (g << 5);
 	RGB565 = RGB565 | b;
 	return RGB565;
-}
-
-let pixelpicker = randomOrderOfPixels();
-
-function randomOrderOfPixels() {
-	let array = new Array(CANVAS_WIDTH*CANVAS_HEIGHT);
-	for (let i = 0; i < CANVAS_WIDTH*CANVAS_HEIGHT; i++) {
-		array[i] = i;
-	}
-    for (let i = array.length - 1; i > 0; i--) { //https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
-        let j = Math.floor(Math.random() * (i + 1));
-        let temp = array[i];
-        array[i] = array[j];
-        array[j] = temp;
-    }
-	return array;
 }
 
 function clearCanvas(image, red, green, blue) {
@@ -463,10 +469,10 @@ async function UIrenderInfo(playtime) { //render song time & year & bitrate & sa
 		totalTime =  Math.floor(playtime / 60.0).toString() + ":"+ seconds;
 	} else totalTime = "Live"
 	textHeightTop += await UIprintRightAndBackground(totalTime, whiteFont, textHeightTop, false);
-	textHeightTop += 4;
+	textHeightTop += 2;
 	if (PLAYER_DATA.year) {
 		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.year.toString(), whiteFont, textHeightTop, false);
-		textHeightTop += 4;
+		textHeightTop += 2;
 	}
 	if (PLAYER_DATA.bitrate && PLAYER_DATA.bitrate > 0) {
 		textHeightTop += await UIprintRightAndBackground(PLAYER_DATA.bitrate.toString(), whiteFont, textHeightTop, false);
@@ -500,6 +506,7 @@ async function updatePlayerUI(onlyPosition, onlyHUD) {
 		if (!onlyPosition) await UIrenderInfo(playtime);
 	}
 	if ((!onlyPosition || onlyHUD) && HUDvisible) await canvas1.composite(canvasHUD, 0, 0);
+	pixelToCheck = 0;
 	sendUIUpdates();
 }
 
@@ -516,7 +523,9 @@ function sendUIUpdates() {
 	ready = false;
 	let different = false;
 	//scan image and determine changes
-	let s = pixelpicker[0];  pixelpicker.unshift(pixelpicker.pop()); //Math.floor(Math.random() * CANVAS_WIDTH*CANVAS_HEIGHT); //select random pixel
+	let s = pixelToCheck;
+	pixelToCheck++;
+	if (pixelToCheck > CANVAS_WIDTH*CANVAS_HEIGHT) pixelToCheck = 0;
 	let i = s*4; //4 bytes per pixel in data
 	let y = Math.floor(s / CANVAS_WIDTH); //line to scan based on pixel
 	let x = s - (y * CANVAS_WIDTH); //pixel on line
@@ -666,12 +675,10 @@ function processReceiveBuffer() {
 		console.log("Clicked.");
 		if (!HUDvisible) {
 			console.log("Show HUD");
+			menuSelected = 0;
+			HUDvisible = true;
 			updateHUD()
-				.then(() => {
-						menuSelected = 0;
-						HUDvisible = true;
-						updatePlayerUI(false, true);
-					});
+				.then(() => updatePlayerUI(false, true));
 		} else {
 			let exiting = false;
 			if (pianobarActive) {
@@ -701,8 +708,8 @@ function processReceiveBuffer() {
 					HUDvisible = false;
 				} else if (menuSelected == 2) {
 					HUDvisible = false; PLAYER_DATA.songStartTime = null; exiting = true;
-					hidePlayer()
-						.then(restartShairport())
+					restartShairport()
+						.then(hidePlayer())
 						.then(() => console.log("Shairport restarted.")); //hidden until we connect again
 				}
 			}
