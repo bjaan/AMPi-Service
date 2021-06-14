@@ -28,6 +28,7 @@ Front and back panel design (WIP):
 * Built-in mains power supply (100-230V)
 * AirPlay playback using [Shairport Sync](https://github.com/mikebrady/shairport-sync). AMPi identifies itself as a AirPlay network player, where your iPhone or iTunes on a Mac can be connected to, to play music.  You can also use iTunes on Windows 10 to play music through AirPlay or route your audio to AMPi using [TuneBlade](http://www.tuneblade.com/)
 * Bluetooth 4.2 Playback, this overrides everything and directly accessible after power-up
+* Quiet & high-quality upsampled to 192kHz/16bit Audio CD playback through generic USB CD/DVD drive (WIP). Breaths new life into the Audio CD format!
 * Pandora.com music player (WIP), using [Pianobar](https://github.com/PromyLOPh/pianobar)
 
 For parts / tools used for the hardware, refer to the [AMPi-Display-Interface](https://github.com/bjaan/AMPi-Display-Interface) repository.
@@ -81,11 +82,12 @@ At the moment the service software is written using Node.js, future plans are to
 
 # Required software
 
-* Raspbian GNU/Linux 10 (buster) - I installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
+* Raspbian GNU/Linux 10 (buster) - We installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
 * Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/)
 * [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
 * Pianobar - when Pandora Music is required, see the [pandorasbox](https://github.com/bjaan/pandorasbox) repository how to properly configure the pianobar service, make sure it is disabled on start-up
+* Mplayer - for CD playback - Installed through the Raspbian repository using `sudo apt-get install mplayer`, for more details so below
 
 The software will run under the context of the _pi_ user and therefore the home-directory is `/home/pi`
 
@@ -109,6 +111,10 @@ The software will run under the context of the _pi_ user and therefore the home-
 * to start: `node AMPi-Node/app.js`
 
 # Configuration changes
+
+* Remove Pulseaudio, we will use ALSA only!
+
+`sudo apt-get remove pulseaudio`
 
 * Raspberry Pi boot configuration in `/boot/config.txt`
 ```sh
@@ -185,3 +191,30 @@ metadata =
         pipe_timeout = 15000;
 };
 ```
+
+# MPlayer & Audio CD Playback
+
+We use the [MPlayer](http://www.mplayerhq.hu) software - and its built-in algorithms - to play Audio CDs from the attached USB CD/DVD/Blu-ray drive and send an high-bitrate digital data stream through the DAC.  The post-processing on the read requires a lot of processing power, which Raspberry Pi happily offers.
+
+We set the drive to a maximum low read speed (1x or 150 KB/sec) so that the drive doesn't spin-up very loudly during playback. This way the drive will not scream and start making heaps of high-pitched load noises, when we want enjoy our music instead.
+
+We apply our _floating-point precision polyphase filterbank (PFB) processing audio resolution enhancement technology_ during CD playback. This upsampling process to 192kHz/16bit doesn't add any additional information to the audio stream, and technically does not improve the sound quality of the Audio CD format, but it removes potential errors and filters the audio better during the digital to analog audio conversion.  More information available here in Dutch: https://verstraten-elektronica.blogspot.com/p/upsampling-bij-audio.html
+
+We also apply our _advanced dynamic buffering anti-stutter stabilization technology_ to enhance the Quality-of-Service (QoS) of the data stream from the Audio CD medium to the DAC.  This will fill a 16-megabit buffer while the player ensures that 80% is filled with audio data during playback. This compensates for breaks in the playback due to recoverable reading errors occurring on the medium due to the physical and spinning nature of the medium.
+
+First, we install a bunch of pre-requisites which allow drive control, internet media information retrieval from gnudb.org & MusicBrainz, and audio playback
+```
+sudo apt-get install setcd
+sudo apt-get install abcde
+sudo apt-get install mplayer
+```
+Now, you can test it out yourself: with PFB upsampling to 192kHz/16bit:
+```
+setcd -x 0
+mplayer -ao alsa -srate 192000 -cache 2048 -af resample=192000:1:2 -nolirc -cache-min 80 -cdrom-device /dev/cdrom cdda://
+```
+versus no upsampling 44.1kHz/16bit sound reproduction:
+
+`mplayer -ao alsa -cache 2048 -nolirc -cache-min 80 -cdrom-device /dev/cdrom cdda://`
+
+For details of the `mplayer` command line options, check here http://www.mplayerhq.hu/DOCS/man/en/mplayer.1.html
