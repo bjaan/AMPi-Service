@@ -49,7 +49,7 @@ AirPlay connection to AMPi in iTunes (Windows 10):
 
 ![AirPlay in iTunes](https://raw.githubusercontent.com/bjaan/AMPi-Service/main/media/itunes.png)
 
-AirPlay connection to AMPi on iPhone (Windows 10):
+AirPlay connection to AMPi on iPhone:
 
 | AirPlay connection | Playback screen with cover art (Live) |
 |--------------|--------------|
@@ -82,7 +82,7 @@ At the moment the service software is written using Node.js, future plans are to
 
 # Required software
 
-* Raspbian GNU/Linux 10 (buster) - We installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
+* Raspbian GNU/Linux 11 (bullseye) - We installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
 * Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/)
 * [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
@@ -162,13 +162,14 @@ card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplus], device 0: HiFiBerry DAC+ Hi
   Subdevice #0: subdevice #0
 ```
 
-* AMPi service file `/etc/systemd/system/ampi.service` to set-up a service for AMPi, called ampi - and installed the service following these [instructions](https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/)
+* AMPi service file `/etc/systemd/system/ampi.service` to set-up a service for AMPi, called ampi - and installed the service following these [instructions](https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/).  We put a start-up delay of 10 seconds to ensure that the serial port is available during this phase of the start-up.
 ```ini
 [Unit]
 Description=ampi
 After=network.target
 
 [Service]
+ExecStartPre=/bin/sleep 10
 ExecStart=node AMPi-Node/app.js
 WorkingDirectory=/home/pi
 StandardOutput=inherit
