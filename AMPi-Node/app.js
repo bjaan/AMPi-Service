@@ -14,7 +14,7 @@ let pianobarChecked = false;
 let pianobarActive = true;
 let pianobarNowPlayingListener = function (curr, prev) { readPianobarInfo(); };
 
-// Serial Commenication
+// Serial Communication
 
 const MAX_MESSAGE = 200;
 const MAX_TEXT = 35;
@@ -78,8 +78,9 @@ function serialReceiveByte(buffer /*1 byte*/) {
 }
 
 function powerOnConfirm() {
+	//three times to make sure it received
 	return new Promise((resolve, reject) => {
-		serialSend(Buffer.from('<P>', 'ascii'), () => { console.log('Power On (P) sent'); resolve(); });
+		serialSend(Buffer.from('<P><b><P><P>', 'ascii'), () => { console.log('Power On (P) sent'); resolve(); });
 	});
 }
 
@@ -627,12 +628,16 @@ serial0.on('open', serialPortOpen);
 serial0.on('close', serialPortClose);
 serial0.on('error', serialError);
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function serialPortOpen() {
 	console.log('port open. Data rate: ' + serial0.baudRate);
-	unblock()
-		.then(powerOnConfirm())
-		.then(hidePlayer())
-		.then(() => checkStatusses());
+	sleep(1500).then(unblock())
+		   .then(powerOnConfirm())
+		   .then(hidePlayer())
+		   .then(() => checkStatusses());
 }
 
 function serialPortClose() { console.log('serial port closed.'); }
