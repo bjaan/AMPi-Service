@@ -82,9 +82,15 @@ At the moment the service software is written using Node.js, future plans are to
 
 # Required software
 
-* Raspbian GNU/Linux 11 (bullseye) - We installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
-* Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/)
-* [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/INSTALL.md) on its GitHub. (3.3.7rc2 has a bug that does not create the metadata pipe) & installed it as a service called `shairport-sync`
+* Raspbian GNU/Linux 12 (bookworm) - We installed a new Raspberry Pi image with the `ampi` hostname, enabled remote SSH login, and connected it to the Internet
+* Node.js for running the service - installed using these [instructions](https://www.instructables.com/Install-Nodejs-and-Npm-on-Raspberry-Pi/) and run `command -v node`, it will return a path to the `node` execute like this - we need this later: `/home/pi/.nvm/versions/node/v20.14.0/bin/node`
+* [Shairport Sync](https://github.com/mikebrady/shairport-sync) 3.3.8+ for Airplay playback. Build according these [instructions](https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md) on its GitHub.  (3.3.7rc2 has a bug that does not create the metadata pipe). NQPTP has to be built and it must be compiled with the `--with-metadata option` & installed it as a service called `shairport-sync`:
+so you will end up with following `./configure` command while building Shairport Sync:
+```sh
+./configure --sysconfdir=/etc --with-alsa \
+    --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 \
+    --with-metadata option
+```
 * Samba service to have a [WINS](https://en.wikipedia.org/wiki/Windows_Internet_Name_Service) local host name eg. `ampi.local` - installed from the Raspbian repository using `sudo apt-get install samba`, `sudo nano /etc/samba/smb.conf`, set `wins support = yes` and run `sudo service smbd restart`, see [link](https://www.raspberrypi.org/forums/viewtopic.php?t=213401)
 * Pianobar - when Pandora Music is required, see the [pandorasbox](https://github.com/bjaan/pandorasbox) repository how to properly configure the pianobar service, make sure it is disabled on start-up
 * Mplayer - for CD playback - Installed through the Raspbian repository using `sudo apt-get install mplayer`, for more details so below
@@ -116,7 +122,7 @@ The software will run under the context of the _pi_ user and therefore the home-
 
 `sudo apt-get remove pulseaudio`
 
-* Raspberry Pi boot configuration in `/boot/config.txt`
+* Raspberry Pi boot configuration in `/boot/firmware/config.txt`
 ```sh
 ...
 
@@ -125,20 +131,19 @@ dtparam=i2c_arm=on
 dtparam=i2s=on
 #dtparam=spi=on
 
-....
+...
 
 # Enable audio (loads snd_bcm2835)
 #dtparam=audio=on
 dtoverlay=hifiberry-dacplus
 
-[pi4]
+...
+
 # Enable DRM VC4 V3D driver on top of the dispmanx display stack
-dtoverlay=vc4-fkms-v3d
+#dtoverlay=vc4-fkms-v3d
 max_framebuffers=2
 
 [all]
-#dtoverlay=vc4-fkms-v3d
-
 enable_uart=1
 hdmi_blanking=2
 ```
@@ -153,16 +158,15 @@ ctl.!default {
 }
 ```
 
-Resulting in the following output:
+Running `aplay -l` will result in following output:
 ```
-pi@ampi:~ $ aplay -l
 **** List of PLAYBACK Hardware Devices ****
 card 0: sndrpihifiberry [snd_rpi_hifiberry_dacplus], device 0: HiFiBerry DAC+ HiFi pcm512x-hifi-0 [HiFiBerry DAC+ HiFi pcm512x-hifi-0]
   Subdevices: 0/1
   Subdevice #0: subdevice #0
 ```
 
-* AMPi service file `/etc/systemd/system/ampi.service` to set-up a service for AMPi, called ampi - and installed the service following these [instructions](https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/).  We put a start-up delay of 10 seconds to ensure that the serial port is available during this phase of the start-up.
+* AMPi service file `/etc/systemd/system/ampi.service` to set-up a service for AMPi, called ampi - and installed the service following these [instructions](https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/).  Change the location of the `node` executable in the `ExecStart` to the actual location. We put a start-up delay of 10 seconds to ensure that the serial port is available during this phase of the start-up.
 ```ini
 [Unit]
 Description=ampi
@@ -170,7 +174,8 @@ After=network.target
 
 [Service]
 ExecStartPre=/bin/sleep 10
-ExecStart=node AMPi-Node/app.js
+ExecStart=command -v node
+/home/pi/.nvm/versions/node/v20.14.0/bin/node ~/AMPi-Service/AMPi-Node/app.js
 WorkingDirectory=/home/pi
 StandardOutput=inherit
 StandardError=inherit
